@@ -12,7 +12,7 @@ struct EnhancedSettingsView: View {
     @StateObject private var calendarService = SimplifiedCalendarService()
     @StateObject private var notificationService = NotificationService()
     @StateObject private var offlineService = OfflineService()
-    @StateObject private var exportService = ExportService()
+    @StateObject private var exportService = ExportService.shared
     @State private var showingCalendarAuth = false
     @State private var showingNotificationSettings = false
     @State private var showingExportOptions = false

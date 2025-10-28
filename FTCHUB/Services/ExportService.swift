@@ -14,17 +14,58 @@ import Supabase
 
 @MainActor
 class ExportService: ObservableObject {
+    static let shared = ExportService()
+    
     @Published var isExporting = false
     @Published var exportProgress: Double = 0.0
     @Published var errorMessage: String?
+    @Published var lastExportDate: Date?
+    @Published var exportedFileURL: URL?
     
     private let supabase = SupabaseService.shared.client
+    private let localStorage = LocalStorage.shared
     
-    init() {
+    private init() {
         // Initialize with default values
         self.isExporting = false
         self.exportProgress = 0.0
         self.errorMessage = nil
+    }
+    
+    // MARK: - File Saving
+    func saveToFile(csvData: String, fileName: String) -> URL? {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileURL = documentsPath.appendingPathComponent(fileName)
+        
+        do {
+            try csvData.write(to: fileURL, atomically: true, encoding: .utf8)
+            exportedFileURL = fileURL
+            lastExportDate = Date()
+            return fileURL
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+    
+    func savePDFToFile(pdfData: Data, fileName: String) -> URL? {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileURL = documentsPath.appendingPathComponent(fileName)
+        
+        do {
+            try pdfData.write(to: fileURL)
+            exportedFileURL = fileURL
+            lastExportDate = Date()
+            return fileURL
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+    
+    func shareFile(url: URL) -> UIActivityViewController {
+        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        return activityVC
     }
     
     // MARK: - CSV Export
