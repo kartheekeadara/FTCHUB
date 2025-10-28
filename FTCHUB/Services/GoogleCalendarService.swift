@@ -17,8 +17,8 @@ class GoogleCalendarService: ObservableObject {
     @Published var isConnected = false
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var calendarEvents: [CalendarEvent] = []
-    @Published var syncStatus: CalendarSyncStatus = .idle
+    @Published var calendarEvents: [GoogleCalendarEvent] = []
+    @Published var syncStatus: GoogleCalendarSyncStatus = .idle
     
     private let calendarService = GTLRCalendarService()
     private var lastSyncDate: Date?
@@ -41,7 +41,7 @@ class GoogleCalendarService: ObservableObject {
             let additionalScopes = [kGTLRAuthScopeCalendar]
             
             guard let rootViewController = await getRootViewController() else {
-                throw CalendarError.noViewController
+                throw GoogleCalendarError.noViewController
             }
             
             let result = try await GIDSignIn.sharedInstance.signIn(
@@ -106,11 +106,11 @@ class GoogleCalendarService: ObservableObject {
     
     // MARK: - Event Management
     func createCalendarEvent(from event: Event) async throws {
-        guard isConnected else { throw CalendarError.notConnected }
+        guard isConnected else { throw GoogleCalendarError.notConnected }
         
         let calendarEvent = GTLRCalendar_Event()
         calendarEvent.summary = event.title
-        calendarEvent.descriptionProperty = event.eventDescription
+        calendarEvent.descriptionProperty = event.description
         calendarEvent.location = event.location
         
         // Set start time
@@ -142,7 +142,7 @@ class GoogleCalendarService: ObservableObject {
     }
     
     func updateCalendarEvent(event: Event, googleEventId: String) async throws {
-        guard isConnected else { throw CalendarError.notConnected }
+        guard isConnected else { throw GoogleCalendarError.notConnected }
         
         // Fetch existing event
         let getQuery = GTLRCalendarQuery_EventsGet.query(
@@ -151,12 +151,12 @@ class GoogleCalendarService: ObservableObject {
         )
         
         guard let existingEvent = try await calendarService.executeQuery(getQuery) as? GTLRCalendar_Event else {
-            throw CalendarError.eventNotFound
+            throw GoogleCalendarError.eventNotFound
         }
         
         // Update event properties
         existingEvent.summary = event.title
-        existingEvent.descriptionProperty = event.eventDescription
+        existingEvent.descriptionProperty = event.description
         existingEvent.location = event.location
         
         let startDateTime = GTLRDateTime(date: event.startDate)
@@ -184,7 +184,7 @@ class GoogleCalendarService: ObservableObject {
     }
     
     func deleteCalendarEvent(googleEventId: String) async throws {
-        guard isConnected else { throw CalendarError.notConnected }
+        guard isConnected else { throw GoogleCalendarError.notConnected }
         
         let deleteQuery = GTLRCalendarQuery_EventsDelete.query(
             withCalendarId: "primary",
@@ -198,7 +198,7 @@ class GoogleCalendarService: ObservableObject {
     }
     
     // MARK: - Helper Methods
-    private func convertToCalendarEvent(_ googleEvent: GTLRCalendar_Event) -> CalendarEvent? {
+    private func convertToCalendarEvent(_ googleEvent: GTLRCalendar_Event) -> GoogleCalendarEvent? {
         guard let identifier = googleEvent.identifier,
               let summary = googleEvent.summary,
               let startDateTime = googleEvent.start?.dateTime?.date else {
@@ -207,7 +207,7 @@ class GoogleCalendarService: ObservableObject {
         
         let endDate = googleEvent.end?.dateTime?.date ?? startDateTime.addingTimeInterval(3600)
         
-        return CalendarEvent(
+        return GoogleCalendarEvent(
             id: identifier,
             title: summary,
             description: googleEvent.descriptionProperty,
@@ -229,7 +229,7 @@ class GoogleCalendarService: ObservableObject {
 }
 
 // MARK: - Supporting Types
-enum CalendarError: LocalizedError {
+enum GoogleCalendarError: LocalizedError {
     case notConnected
     case noViewController
     case eventNotFound
@@ -252,14 +252,14 @@ enum CalendarError: LocalizedError {
     }
 }
 
-enum CalendarSyncStatus {
+enum GoogleCalendarSyncStatus {
     case idle
     case syncing
     case success
     case failed
 }
 
-struct CalendarEvent: Identifiable, Codable {
+struct GoogleCalendarEvent: Identifiable, Codable {
     let id: String
     let title: String
     let description: String?

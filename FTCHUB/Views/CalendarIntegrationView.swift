@@ -103,7 +103,7 @@ struct ConnectionStatusRow: View {
 }
 
 struct CalendarEventRow: View {
-    let event: CalendarEvent
+    let event: GoogleCalendarEvent
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
