@@ -1,0 +1,804 @@
+# Step 1: Foundation & Supabase Setup
+
+## Overview
+This step establishes the complete development foundation for the FTC Team App, including Supabase backend setup, database schema design, authentication system, and core iOS project architecture.
+
+## Prerequisites
+- Xcode 15.0+ installed
+- macOS 13.0+ (for iOS 16+ development)
+- Apple Developer Account (for App Store distribution)
+- Internet connection for Supabase setup
+
+## Part A: Supabase Backend Setup
+
+### 1.1 Create Supabase Project
+1. Go to https://supabase.com
+2. Sign up/Login with your account
+3. Click "New Project"
+4. Choose organization (or create one)
+5. Project details:
+   - Name: "ftc-team-app"
+   - Database Password: Generate strong password (save it!)
+   - Region: Choose closest to your location
+   - Pricing: Start with Free tier
+6. Click "Create new project"
+7. Wait 2-3 minutes for setup completion
+
+### 1.2 Configure Authentication
+1. In Supabase Dashboard, go to Authentication > Settings
+2. Site URL: Add your development URL (we'll update this later)
+3. Redirect URLs: Add your app's URL scheme
+4. Enable providers:
+   - Email: Enable
+   - Google: Enable (we'll configure OAuth later)
+5. Go to Authentication > Policies
+6. Enable RLS (Row Level Security) on all tables
+
+### 1.3 Database Schema Setup
+Run these SQL commands in Supabase SQL Editor:
+
+```sql
+-- Enable necessary extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Create custom types
+CREATE TYPE user_role AS ENUM ('admin', 'editor', 'readonly');
+CREATE TYPE member_role AS ENUM ('driver', 'programmer', 'builder', 'scout', 'coach', 'mentor');
+CREATE TYPE event_status AS ENUM ('scheduled', 'in_progress', 'completed', 'cancelled');
+CREATE TYPE task_status AS ENUM ('todo', 'doing', 'done');
+CREATE TYPE match_phase AS ENUM ('auto', 'teleop', 'endgame');
+
+-- Teams table
+CREATE TABLE teams (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    number VARCHAR(10) UNIQUE NOT NULL,
+    school VARCHAR(255),
+    city VARCHAR(100),
+    state VARCHAR(50),
+    country VARCHAR(50) DEFAULT 'USA',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Users table (Supabase auth.users + our custom fields)
+CREATE TABLE profiles (
+    id UUID REFERENCES auth.users(id) PRIMARY KEY,
+    team_id UUID REFERENCES teams(id),
+    role user_role DEFAULT 'readonly',
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    phone VARCHAR(20),
+    grade INTEGER,
+    member_role member_role,
+    experience_badges TEXT[],
+    emergency_contact_name VARCHAR(100),
+    emergency_contact_phone VARCHAR(20),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Events table
+CREATE TABLE events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    team_id UUID REFERENCES teams(id) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_date TIMESTAMP WITH TIME ZONE,
+    location VARCHAR(255),
+    event_type VARCHAR(50), -- 'practice', 'competition', 'meeting', 'outreach'
+    status event_status DEFAULT 'scheduled',
+    google_calendar_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RSVPs table
+CREATE TABLE rsvps (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    event_id UUID REFERENCES events(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'attending', 'declined'
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(event_id, user_id)
+);
+
+-- Tasks table (Kanban board)
+CREATE TABLE tasks (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    team_id UUID REFERENCES teams(id) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    status task_status DEFAULT 'todo',
+    priority INTEGER DEFAULT 1, -- 1=low, 2=medium, 3=high, 4=urgent
+    assignee_id UUID REFERENCES profiles(id),
+    due_date TIMESTAMP WITH TIME ZONE,
+    created_by UUID REFERENCES profiles(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Task attachments
+CREATE TABLE task_attachments (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
+    file_name VARCHAR(255) NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size INTEGER,
+    mime_type VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Inventory items
+CREATE TABLE inventory_items (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    team_id UUID REFERENCES teams(id) NOT NULL,
+    sku VARCHAR(100) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    manufacturer VARCHAR(100),
+    part_number VARCHAR(100),
+    category VARCHAR(100),
+    location VARCHAR(100),
+    quantity_on_hand INTEGER DEFAULT 0,
+    low_stock_threshold INTEGER DEFAULT 5,
+    unit_cost DECIMAL(10,2),
+    description TEXT,
+    image_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(team_id, sku)
+);
+
+-- Stock transactions
+CREATE TABLE stock_transactions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    item_id UUID REFERENCES inventory_items(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES profiles(id),
+    transaction_type VARCHAR(20) NOT NULL, -- 'in', 'out', 'adjustment'
+    quantity INTEGER NOT NULL,
+    reason VARCHAR(255),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Orders/Finance
+CREATE TABLE orders (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    team_id UUID REFERENCES teams(id) NOT NULL,
+    order_number VARCHAR(100) UNIQUE,
+    vendor VARCHAR(255),
+    total_amount DECIMAL(10,2),
+    order_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'ordered', 'received', 'cancelled'
+    notes TEXT,
+    receipt_url TEXT,
+    created_by UUID REFERENCES profiles(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Order items
+CREATE TABLE order_items (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+    item_id UUID REFERENCES inventory_items(id),
+    quantity INTEGER NOT NULL,
+    unit_price DECIMAL(10,2),
+    total_price DECIMAL(10,2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Scouting templates
+CREATE TABLE scouting_templates (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    team_id UUID REFERENCES teams(id) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    is_default BOOLEAN DEFAULT FALSE,
+    template_data JSONB NOT NULL, -- Store form structure as JSON
+    created_by UUID REFERENCES profiles(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Scouting reports
+CREATE TABLE scouting_reports (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    team_id UUID REFERENCES teams(id) NOT NULL,
+    template_id UUID REFERENCES scouting_templates(id),
+    scouted_team_number VARCHAR(10) NOT NULL,
+    match_number VARCHAR(20),
+    event_name VARCHAR(255),
+    phase match_phase,
+    scout_id UUID REFERENCES profiles(id),
+    report_data JSONB NOT NULL, -- Store form responses as JSON
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Troubleshooting entries
+CREATE TABLE troubleshooting_entries (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    team_id UUID REFERENCES teams(id) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    subsystem VARCHAR(100),
+    solution TEXT,
+    tags TEXT[],
+    created_by UUID REFERENCES profiles(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Troubleshooting attachments
+CREATE TABLE troubleshooting_attachments (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    entry_id UUID REFERENCES troubleshooting_entries(id) ON DELETE CASCADE,
+    file_name VARCHAR(255) NOT NULL,
+    file_path TEXT NOT NULL,
+    file_type VARCHAR(20), -- 'image', 'video', 'document'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for performance
+CREATE INDEX idx_profiles_team_id ON profiles(team_id);
+CREATE INDEX idx_events_team_id ON events(team_id);
+CREATE INDEX idx_events_start_date ON events(start_date);
+CREATE INDEX idx_tasks_team_id ON tasks(team_id);
+CREATE INDEX idx_tasks_status ON tasks(status);
+CREATE INDEX idx_inventory_team_id ON inventory_items(team_id);
+CREATE INDEX idx_scouting_team_id ON scouting_reports(team_id);
+CREATE INDEX idx_scouting_scouted_team ON scouting_reports(scouted_team_number);
+
+-- Create updated_at triggers
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_teams_updated_at BEFORE UPDATE ON teams FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_events_updated_at BEFORE UPDATE ON events FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_inventory_updated_at BEFORE UPDATE ON inventory_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_templates_updated_at BEFORE UPDATE ON scouting_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_reports_updated_at BEFORE UPDATE ON scouting_reports FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_troubleshooting_updated_at BEFORE UPDATE ON troubleshooting_entries FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
+
+### 1.4 Set up Row Level Security (RLS) Policies
+Run these SQL commands to secure your data:
+
+```sql
+-- Enable RLS on all tables
+ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rsvps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stock_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scouting_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scouting_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE troubleshooting_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE troubleshooting_attachments ENABLE ROW LEVEL SECURITY;
+
+-- Teams policies
+CREATE POLICY "Users can view their own team" ON teams
+    FOR SELECT USING (id IN (
+        SELECT team_id FROM profiles WHERE id = auth.uid()
+    ));
+
+CREATE POLICY "Admins can update their team" ON teams
+    FOR UPDATE USING (id IN (
+        SELECT team_id FROM profiles 
+        WHERE id = auth.uid() AND role = 'admin'
+    ));
+
+-- Profiles policies
+CREATE POLICY "Users can view team members" ON profiles
+    FOR SELECT USING (team_id IN (
+        SELECT team_id FROM profiles WHERE id = auth.uid()
+    ));
+
+CREATE POLICY "Users can update their own profile" ON profiles
+    FOR UPDATE USING (id = auth.uid());
+
+-- Events policies
+CREATE POLICY "Team members can view team events" ON events
+    FOR SELECT USING (team_id IN (
+        SELECT team_id FROM profiles WHERE id = auth.uid()
+    ));
+
+CREATE POLICY "Editors can manage team events" ON events
+    FOR ALL USING (team_id IN (
+        SELECT team_id FROM profiles 
+        WHERE id = auth.uid() AND role IN ('admin', 'editor')
+    ));
+
+-- Similar policies for other tables...
+-- (Additional RLS policies will be added in the iOS implementation)
+```
+
+## Part B: iOS Project Setup
+
+### 1.5 Configure Xcode Project
+1. Open your existing FTCHUB.xcodeproj
+2. Select the project in navigator
+3. Go to "Signing & Capabilities"
+4. Add your Apple Developer Team
+5. Set Bundle Identifier: `com.yourname.ftchub` (replace yourname)
+6. Set iOS Deployment Target to 16.0
+
+### 1.6 Add Swift Package Dependencies
+1. File > Add Package Dependencies
+2. Add these packages:
+   - `https://github.com/supabase/supabase-swift` (latest version)
+   - `https://github.com/google/GoogleSignIn-iOS` (latest version)
+   - `https://github.com/onevcat/Kingfisher` (for image loading)
+   - `https://github.com/realm/realm-swift` (for offline storage - we'll add this in Step 6)
+
+### 1.7 Create Project Structure
+Create these folders in your project:
+- Models/
+- Services/
+- ViewModels/
+- Views/
+- Utils/
+- Resources/
+
+## Part C: Core Implementation
+
+### 1.8 Create Configuration File
+Create `Utils/Config.swift`:
+
+```swift
+import Foundation
+
+struct Config {
+    static let supabaseURL = "YOUR_SUPABASE_URL"
+    static let supabaseAnonKey = "YOUR_SUPABASE_ANON_KEY"
+    static let googleClientID = "YOUR_GOOGLE_CLIENT_ID"
+}
+```
+
+### 1.9 Create Supabase Service
+Create `Services/SupabaseService.swift`:
+
+```swift
+import Foundation
+import Supabase
+
+class SupabaseService: ObservableObject {
+    static let shared = SupabaseService()
+    
+    let client: SupabaseClient
+    
+    private init() {
+        self.client = SupabaseClient(
+            supabaseURL: URL(string: Config.supabaseURL)!,
+            supabaseKey: Config.supabaseAnonKey
+        )
+    }
+}
+```
+
+### 1.10 Create Core Models
+Create `Models/Team.swift`:
+
+```swift
+import Foundation
+
+struct Team: Codable, Identifiable {
+    let id: UUID
+    let name: String
+    let number: String
+    let school: String?
+    let city: String?
+    let state: String?
+    let country: String
+    let createdAt: Date
+    let updatedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, number, school, city, state, country
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+```
+
+Create `Models/Profile.swift`:
+
+```swift
+import Foundation
+
+enum UserRole: String, Codable, CaseIterable {
+    case admin = "admin"
+    case editor = "editor"
+    case readonly = "readonly"
+}
+
+enum MemberRole: String, Codable, CaseIterable {
+    case driver = "driver"
+    case programmer = "programmer"
+    case builder = "builder"
+    case scout = "scout"
+    case coach = "coach"
+    case mentor = "mentor"
+}
+
+struct Profile: Codable, Identifiable {
+    let id: UUID
+    let teamId: UUID?
+    let role: UserRole
+    let firstName: String?
+    let lastName: String?
+    let email: String
+    let phone: String?
+    let grade: Int?
+    let memberRole: MemberRole?
+    let experienceBadges: [String]?
+    let emergencyContactName: String?
+    let emergencyContactPhone: String?
+    let createdAt: Date
+    let updatedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id, email, phone, grade
+        case teamId = "team_id"
+        case role
+        case firstName = "first_name"
+        case lastName = "last_name"
+        case memberRole = "member_role"
+        case experienceBadges = "experience_badges"
+        case emergencyContactName = "emergency_contact_name"
+        case emergencyContactPhone = "emergency_contact_phone"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+```
+
+### 1.11 Create Authentication Service
+Create `Services/AuthService.swift`:
+
+```swift
+import Foundation
+import Supabase
+
+@MainActor
+class AuthService: ObservableObject {
+    @Published var currentUser: Profile?
+    @Published var isAuthenticated = false
+    
+    private let supabase = SupabaseService.shared.client
+    
+    init() {
+        Task {
+            await checkAuthStatus()
+        }
+    }
+    
+    func checkAuthStatus() async {
+        do {
+            let session = try await supabase.auth.session
+            if let user = session.user {
+                await loadUserProfile(userId: user.id)
+            }
+        } catch {
+            print("Auth check failed: \(error)")
+        }
+    }
+    
+    func signIn(email: String, password: String) async throws {
+        let session = try await supabase.auth.signIn(email: email, password: password)
+        if let user = session.user {
+            await loadUserProfile(userId: user.id)
+        }
+    }
+    
+    func signUp(email: String, password: String, firstName: String, lastName: String) async throws {
+        let session = try await supabase.auth.signUp(email: email, password: password)
+        if let user = session.user {
+            // Create profile
+            let profile = Profile(
+                id: user.id,
+                teamId: nil,
+                role: .readonly,
+                firstName: firstName,
+                lastName: lastName,
+                email: email,
+                phone: nil,
+                grade: nil,
+                memberRole: nil,
+                experienceBadges: [],
+                emergencyContactName: nil,
+                emergencyContactPhone: nil,
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+            
+            try await supabase.database
+                .from("profiles")
+                .insert(profile)
+                .execute()
+            
+            await loadUserProfile(userId: user.id)
+        }
+    }
+    
+    func signOut() async throws {
+        try await supabase.auth.signOut()
+        currentUser = nil
+        isAuthenticated = false
+    }
+    
+    private func loadUserProfile(userId: UUID) async {
+        do {
+            let profile: Profile = try await supabase.database
+                .from("profiles")
+                .select()
+                .eq("id", value: userId)
+                .single()
+                .execute()
+                .value
+            
+            currentUser = profile
+            isAuthenticated = true
+        } catch {
+            print("Failed to load profile: \(error)")
+        }
+    }
+}
+```
+
+### 1.12 Update App Structure
+Update `FTCHUBApp.swift`:
+
+```swift
+import SwiftUI
+
+@main
+struct FTCHUBApp: App {
+    @StateObject private var authService = AuthService()
+    
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(authService)
+        }
+    }
+}
+```
+
+Update `ContentView.swift`:
+
+```swift
+import SwiftUI
+
+struct ContentView: View {
+    @EnvironmentObject var authService: AuthService
+    
+    var body: some View {
+        Group {
+            if authService.isAuthenticated {
+                MainTabView()
+            } else {
+                AuthenticationView()
+            }
+        }
+    }
+}
+
+struct MainTabView: View {
+    var body: some View {
+        TabView {
+            TeamView()
+                .tabItem {
+                    Image(systemName: "person.3")
+                    Text("Team")
+                }
+            
+            InventoryView()
+                .tabItem {
+                    Image(systemName: "cube.box")
+                    Text("Inventory")
+                }
+            
+            ScoutingView()
+                .tabItem {
+                    Image(systemName: "chart.bar")
+                    Text("Scouting")
+                }
+            
+            CompetitionView()
+                .tabItem {
+                    Image(systemName: "trophy")
+                    Text("Competition")
+                }
+        }
+    }
+}
+
+// Placeholder views for now
+struct TeamView: View {
+    var body: some View {
+        NavigationView {
+            Text("Team Management")
+                .navigationTitle("Team")
+        }
+    }
+}
+
+struct InventoryView: View {
+    var body: some View {
+        NavigationView {
+            Text("Parts Inventory")
+                .navigationTitle("Inventory")
+        }
+    }
+}
+
+struct ScoutingView: View {
+    var body: some View {
+        NavigationView {
+            Text("Scouting & Analytics")
+                .navigationTitle("Scouting")
+        }
+    }
+}
+
+struct CompetitionView: View {
+    var body: some View {
+        NavigationView {
+            Text("Competition Tools")
+                .navigationTitle("Competition")
+        }
+    }
+}
+
+struct AuthenticationView: View {
+    @EnvironmentObject var authService: AuthService
+    @State private var email = ""
+    @State private var password = ""
+    @State private var firstName = ""
+    @State private var lastName = ""
+    @State private var isSignUp = false
+    @State private var isLoading = false
+    @State private var errorMessage = ""
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Image(systemName: "robot")
+                    .font(.system(size: 60))
+                    .foregroundColor(.blue)
+                
+                Text("FTC Team Hub")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                VStack(spacing: 15) {
+                    if isSignUp {
+                        TextField("First Name", text: $firstName)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                        
+                        TextField("Last Name", text: $lastName)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+                    
+                    TextField("Email", text: $email)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .keyboardType(.emailAddress)
+                        .autocapitalization(.none)
+                    
+                    SecureField("Password", text: $password)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .font(.caption)
+                    }
+                    
+                    Button(action: handleAuth) {
+                        HStack {
+                            if isLoading {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            }
+                            Text(isSignUp ? "Sign Up" : "Sign In")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .disabled(isLoading || email.isEmpty || password.isEmpty)
+                    
+                    Button(action: { isSignUp.toggle() }) {
+                        Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
+                            .font(.caption)
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+    
+    private func handleAuth() {
+        isLoading = true
+        errorMessage = ""
+        
+        Task {
+            do {
+                if isSignUp {
+                    try await authService.signUp(
+                        email: email,
+                        password: password,
+                        firstName: firstName,
+                        lastName: lastName
+                    )
+                } else {
+                    try await authService.signIn(email: email, password: password)
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isLoading = false
+        }
+    }
+}
+
+#Preview {
+    ContentView()
+        .environmentObject(AuthService())
+}
+```
+
+## Part D: Testing & Verification
+
+### 1.13 Test Basic Setup
+1. Build and run the app (⌘+R)
+2. Verify the authentication screen appears
+3. Test sign up with a test email
+4. Verify the main tab view appears after authentication
+5. Check Supabase dashboard to see the new user profile
+
+### 1.14 Get Supabase Credentials
+1. In Supabase Dashboard, go to Settings > API
+2. Copy the Project URL and anon public key
+3. Update `Config.swift` with your actual values
+4. For Google Sign-In, you'll need to set up OAuth (we'll do this in Step 2)
+
+## Success Criteria
+- [ ] Supabase project created and configured
+- [ ] Database schema created with all tables
+- [ ] RLS policies implemented
+- [ ] iOS project configured with dependencies
+- [ ] Basic authentication working
+- [ ] App builds and runs without errors
+- [ ] User can sign up and see main interface
+
+## Next Steps
+Once Step 1 is complete, you'll have a solid foundation to build upon. Step 2 will focus on implementing the team management features including roster management, availability tracking, and task management.
+
+## Troubleshooting
+- If Supabase connection fails, verify your URL and API key
+- If authentication doesn't work, check your RLS policies
+- If the app crashes, check the Xcode console for error messages
+- Make sure your iOS deployment target is 16.0 or higher

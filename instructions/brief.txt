@@ -1,0 +1,192 @@
+Product brief — FTC Team App (scouting, team ops, robot & competition tools)
+
+One-line: A cross-platform team app (mobile + web PWA) that centralizes roster & scheduling, parts and finance tracking, match scouting and analytics, and competition tools tailored to FIRST® Tech Challenge teams.
+
+Executive summary
+
+FTC teams need simple, reliable tools for people management, part inventory, scouting/strategy, and competition operations. This product bundles those needs into a single app built for use at practice, in the pits, and on the competition floor — with offline-first behavior, role-based permissions (students / mentors / parents), and integrations with FTC scoring (FTC-Live), Google Calendar, and common parts vendors. The app’s MVP focuses on roster + scheduling, basic scouting templates + analytics, parts inventory and purchase logs, and core match tools (timer, scoring simulator). 
+GitHub
++1
+
+Primary goals
+
+Make team organization painless so mentors aren’t overloaded.
+
+Improve scouting/strategy decisions with structured data and visual analytics. 
+FIRST
++1
+
+Keep build/admin knowledge persistent (inventory, troubleshooting, orders).
+
+Work reliably at venues without internet.
+
+Target users
+
+Primary: High school FTC team students (drivers, scouts, builders, programmers).
+
+Secondary: Mentors / coaches, parents, program leads, event volunteers.
+
+Tertiary: Community sponsors (view-only sponsor pages).
+
+Core features (mapped to your list)
+Team Management & Collaboration
+
+Team Roster: profiles (role, grade, contact, emergency contact, experience badges), export CSV.
+
+Availability Tracker: event invites with RSVP and automatic conflict highlights.
+
+Task Assignments: Kanban-style boards (To Do / Doing / Done) + issue detail (attachments, subtasks, assignee) — Jira-like lightweight flow tailored for student teams.
+
+Shared Calendar: in-app calendar + one-tap two-way Google Calendar linking (OAuth).
+
+Robot & Code Management
+
+Parts Inventory: SKU-style inventory items (manufacturer, part number, location, quantity on-hand, low-stock threshold). Pre-populated common REV / TETRIX lists with quick-add. 
+REV Robotics
++1
+
+Order Logs & Finance: purchase table (link receipts), donor/sponsor credits, budget vs. actual.
+
+Troubleshooting Log: searchable knowledge base (tagged by subsystem), attach images & short video clips.
+
+Scouting & Strategy (FTC-specific)
+
+Match Scouting Forms: customizable templates (auto / teleop / endgame) + QR code to quickly open forms on tablets/phones. Templates derived from FIRST scouting guidance and common community sheets. 
+FIRST
++1
+
+Data Analytics: team / match dashboards — averages, heatmaps, trend lines, success rates; export to CSV. (Integrate with community sites like FTCStats for historical context.) 
+FTC Stats
+
+Alliance Selection Helper: ranking engine that scores teams by weighted metrics (auto success, climb success, penalty rate, reliability).
+
+Strategy Board: real-time collaborative whiteboard to plan picks and alliance strategies.
+
+Competition Tools
+
+Match Schedule Integration: import schedule CSV or sync with local FTC Live/scorekeeper event exports. (App can ingest FTC-Live schedule files.) 
+GitHub
+
+Real-Time Scoring Calculator: season-configurable scoring simulator (rules-driven) so drivers and coaches can test scenarios.
+
+Ref Rules Reference: fast keyword search across the current season’s competition manual and team updates. 
+FTC Resources
+
+Drive Team Timer: presets for match phases and audible vibration alerts.
+
+Fundraising & Outreach
+
+Sponsor Management: donor profiles, recognition tier templates, automated “thank you” email drafts.
+
+Grant Deadlines: create reminders for FIRST/other grants; attach files to submissions.
+
+Outreach Log & Media Hub: catalog events and store branding assets; generate simple press-ready PDFs for sponsors.
+
+Other Helpful Features
+
+Offline Mode: store roster, inventory, last-synced scouting forms and the rules reference locally; sync changes when online.
+
+Role-Based Access: admins (mentors), editors (students), read-only (parents/sponsors).
+
+Push Notifications: deadlines, match reminders, RSVP changes, low stock alerts.
+
+Export / Backup: CSV / PDF exports and optional encrypted cloud backup.
+
+Research (key references)
+
+FTC seasons and game materials are published on FIRST; the 2025–2026 game is DECODE™ and game manuals / team updates are the canonical source for rules. 
+FIRST
++1
+
+FTC uses a “Scorekeeper / FTC-Live” system for match scoring and schedule management — events are often created in a cloud dashboard and transferred to local scoring machines. Our app should be able to import/export compatible schedule/score files. 
+GitHub
++1
+
+FIRST and community scouting templates and guides recommend simple match sheets and provide best-practice guidance for what to capture (autos, teleop, penalties, reliability). The app’s templates should match these recommended data points. 
+FIRST
++1
+
+REV Robotics and TETRIX provide parts / starter kit lists that help seed the inventory catalog so teams don’t start from blank. 
+REV Robotics
++1
+
+Community analytics (e.g., FTCStats) show how teams use match metrics to rank/compare performance; allow exports so teams can cross-reference. 
+FTC Stats
+
+Suggested platform & architecture
+
+Platform: Progressive Web App (PWA) + optional native wrappers (iOS & Android) for push reliability and native file access. Works offline, installs to home screen.
+
+Backend: Serverless / managed (Firebase / Supabase) for realtime sync (Firestore / Realtime DB) and offline-first support. Use cloud functions to validate imports (schedule, scouting CSVs).
+
+Database model (high-level):
+
+Teams → Members, Roles, Permissions
+
+Events → Matches, RSVPs, ImportedScheduleFiles
+
+Inventory → Items, StockTransactions, Vendors
+
+Scouting → MatchReports, Scouters, Templates
+
+Finances → Transactions, Budgets, Orders
+
+Media → Assets (with thumbnails, tags)
+
+Integrations: Google Calendar (OAuth), FTC-Live/Scorekeeper CSV or JSON schedule import, optional FTP/CSV import from vendor purchase systems.
+
+Authentication: OAuth (Google SSO) + email; guests via expiring links. Role checks via claims on JWT tokens.
+
+Data & privacy considerations
+
+Many users will be minors — minimize personal data stored (no unnecessary PII), require mentors to approve student signups, provide parental consent flows when required, and default to obfuscating contact details from other teams. Encrypt backups and use TLS in transit. Follow school and FIRST guidelines regarding student data.
+
+MVP (Phase 1) — what to build first
+
+User accounts + team roster + role-based access.
+
+Shared calendar with Google Calendar sync and RSVP.
+
+Parts inventory with quick-add, stock counts, and low-stock alerts (seed with REV/TETRIX lists). 
+REV Robotics
++1
+
+Scouting: a customizable match form, offline capture, sync, and CSV export. (Include a default FIRST-style template.) 
+FIRST
+
+Match tools: Drive Team Timer and scoring simulator that can be configured per-season.
+
+Order / finance log (simple ledger & receipt attach).
+
+Phase 2 (Enhancements) — analytics dashboards, alliance selection helper, troubleshooting knowledge base, sponsor module, richer task/kanban flows.
+
+Phase 3 (Scaling & polish) — full FTC-Live schedule import, community integrations (FTCStats), multi-team collaboration & federation-level admin, advanced analytics (prediction, machine learning on scouting data).
+
+User stories & acceptance criteria (examples)
+
+As a scout, I want to scan a match QR and submit a match report in < 30 seconds so I can scout multiple matches. → Accept if median submission time ≤ 45s in dry run.
+
+As a mentor, I want low-stock notifications when an item falls below threshold, so I can reorder before events. → Accept if push/email sent when quantity <= threshold.
+
+As a drive coach, I want a countdown timer that vibrates at 10s, 5s, and 0 for driver cues. → Accept if audible/vibrate triggers reliably on-device offline.
+
+KPIs / success metrics
+
+Team retention (monthly active teams using app).
+
+Avg time to submit a scouting form (goal: <60s).
+
+Inventory accuracy (match physical counts vs. app counts; target >95%).
+
+Reduction in mentor-admin hours per week (surveyed).
+
+Increase in successful alliance picks (post-comp comparison) — long-term.
+
+Risks & mitigations
+
+Data privacy risk: store minimal PII; parental consent for minors and robust auth.
+
+Offline sync conflicts: use last-writer-wins for non-critical fields, but for inventory/spend use optimistic locking & conflict resolution dialogs.
+
+Rule changes each season: make scoring engine configurable by uploading the season rules or using a simple rules DSL so you can update scoring without code changes. 
+FTC Resources

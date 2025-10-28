@@ -1,0 +1,1515 @@
+# Step 2: Team Management & Collaboration
+
+## Overview
+This step implements comprehensive team management features including roster management, availability tracking, task assignments, and shared calendar integration with modern UI design trends.
+
+## Design Philosophy
+Based on 2024-2025 iOS design trends, we're implementing:
+- **Glassmorphism**: Subtle transparency effects for depth
+- **Neumorphism**: Soft, tactile button designs
+- **Dynamic Color**: Adaptive color schemes that respond to system settings
+- **Micro-interactions**: Smooth animations and haptic feedback
+- **Card-based layouts**: Clean, organized information hierarchy
+- **Gradient accents**: Modern color transitions for visual appeal
+
+## Part A: Enhanced Data Models
+
+### 2.1 Create Event Model
+Create `Models/Event.swift`:
+
+```swift
+import Foundation
+
+enum EventType: String, Codable, CaseIterable {
+    case practice = "practice"
+    case competition = "competition"
+    case meeting = "meeting"
+    case outreach = "outreach"
+    
+    var displayName: String {
+        switch self {
+        case .practice: return "Practice"
+        case .competition: return "Competition"
+        case .meeting: return "Meeting"
+        case .outreach: return "Outreach"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .practice: return "hammer.fill"
+        case .competition: return "trophy.fill"
+        case .meeting: return "person.3.fill"
+        case .outreach: return "megaphone.fill"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .practice: return "blue"
+        case .competition: return "orange"
+        case .meeting: return "green"
+        case .outreach: return "purple"
+        }
+    }
+}
+
+enum EventStatus: String, Codable, CaseIterable {
+    case scheduled = "scheduled"
+    case inProgress = "in_progress"
+    case completed = "completed"
+    case cancelled = "cancelled"
+    
+    var displayName: String {
+        switch self {
+        case .scheduled: return "Scheduled"
+        case .inProgress: return "In Progress"
+        case .completed: return "Completed"
+        case .cancelled: return "Cancelled"
+        }
+    }
+}
+
+struct Event: Codable, Identifiable, Hashable {
+    let id: UUID
+    let teamId: UUID
+    let title: String
+    let description: String?
+    let startDate: Date
+    let endDate: Date?
+    let location: String?
+    let eventType: EventType
+    let status: EventStatus
+    let googleCalendarId: String?
+    let createdAt: Date
+    let updatedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, location
+        case teamId = "team_id"
+        case startDate = "start_date"
+        case endDate = "end_date"
+        case eventType = "event_type"
+        case status
+        case googleCalendarId = "google_calendar_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+    
+    var duration: TimeInterval {
+        let end = endDate ?? startDate.addingTimeInterval(3600) // Default 1 hour
+        return end.timeIntervalSince(startDate)
+    }
+    
+    var isAllDay: Bool {
+        return duration >= 86400 // 24 hours
+    }
+}
+```
+
+### 2.2 Create RSVP Model
+Create `Models/RSVP.swift`:
+
+```swift
+import Foundation
+
+enum RSVPStatus: String, Codable, CaseIterable {
+    case pending = "pending"
+    case attending = "attending"
+    case declined = "declined"
+    
+    var displayName: String {
+        switch self {
+        case .pending: return "Pending"
+        case .attending: return "Attending"
+        case .declined: return "Declined"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .pending: return "orange"
+        case .attending: return "green"
+        case .declined: return "red"
+        }
+    }
+}
+
+struct RSVP: Codable, Identifiable, Hashable {
+    let id: UUID
+    let eventId: UUID
+    let userId: UUID
+    let status: RSVPStatus
+    let notes: String?
+    let createdAt: Date
+    let updatedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id, status, notes
+        case eventId = "event_id"
+        case userId = "user_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+```
+
+### 2.3 Create Task Model
+Create `Models/Task.swift`:
+
+```swift
+import Foundation
+
+enum TaskStatus: String, Codable, CaseIterable {
+    case todo = "todo"
+    case doing = "doing"
+    case done = "done"
+    
+    var displayName: String {
+        switch self {
+        case .todo: return "To Do"
+        case .doing: return "Doing"
+        case .done: return "Done"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .todo: return "gray"
+        case .doing: return "blue"
+        case .done: return "green"
+        }
+    }
+}
+
+enum TaskPriority: Int, Codable, CaseIterable {
+    case low = 1
+    case medium = 2
+    case high = 3
+    case urgent = 4
+    
+    var displayName: String {
+        switch self {
+        case .low: return "Low"
+        case .medium: return "Medium"
+        case .high: return "High"
+        case .urgent: return "Urgent"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .low: return "green"
+        case .medium: return "yellow"
+        case .high: return "orange"
+        case .urgent: return "red"
+        }
+    }
+}
+
+struct Task: Codable, Identifiable, Hashable {
+    let id: UUID
+    let teamId: UUID
+    let title: String
+    let description: String?
+    let status: TaskStatus
+    let priority: TaskPriority
+    let assigneeId: UUID?
+    let dueDate: Date?
+    let createdBy: UUID
+    let createdAt: Date
+    let updatedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, status, priority, dueDate
+        case teamId = "team_id"
+        case assigneeId = "assignee_id"
+        case createdBy = "created_by"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+    
+    var isOverdue: Bool {
+        guard let dueDate = dueDate else { return false }
+        return dueDate < Date() && status != .done
+    }
+    
+    var daysUntilDue: Int? {
+        guard let dueDate = dueDate else { return nil }
+        return Calendar.current.dateComponents([.day], from: Date(), to: dueDate).day
+    }
+}
+```
+
+## Part B: Services Layer
+
+### 2.4 Create TeamService
+Create `Services/TeamService.swift`:
+
+```swift
+import Foundation
+import Supabase
+import Combine
+
+@MainActor
+class TeamService: ObservableObject {
+    @Published var currentTeam: Team?
+    @Published var teamMembers: [Profile] = []
+    @Published var events: [Event] = []
+    @Published var tasks: [Task] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    
+    private let supabase = SupabaseService.shared.client
+    
+    // MARK: - Team Management
+    func createTeam(name: String, number: String, school: String?, city: String?, state: String?) async throws {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        do {
+            let team = Team(
+                id: UUID(),
+                name: name,
+                number: number,
+                school: school,
+                city: city,
+                state: state,
+                country: "USA",
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+            
+            try await supabase.database
+                .from("teams")
+                .insert(team)
+                .execute()
+            
+            currentTeam = team
+        } catch {
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    func joinTeam(teamNumber: String) async throws {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        do {
+            let team: Team = try await supabase.database
+                .from("teams")
+                .select()
+                .eq("number", value: teamNumber)
+                .single()
+                .execute()
+                .value
+            
+            // Update user's team_id
+            try await supabase.database
+                .from("profiles")
+                .update(["team_id": team.id])
+                .eq("id", value: supabase.auth.currentUser?.id)
+                .execute()
+            
+            currentTeam = team
+            await loadTeamData()
+        } catch {
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    func loadTeamData() async {
+        guard let teamId = currentTeam?.id else { return }
+        
+        do {
+            // Load team members
+            let members: [Profile] = try await supabase.database
+                .from("profiles")
+                .select()
+                .eq("team_id", value: teamId)
+                .execute()
+                .value
+            
+            teamMembers = members
+            
+            // Load events
+            let teamEvents: [Event] = try await supabase.database
+                .from("events")
+                .select()
+                .eq("team_id", value: teamId)
+                .order("start_date", ascending: true)
+                .execute()
+                .value
+            
+            events = teamEvents
+            
+            // Load tasks
+            let teamTasks: [Task] = try await supabase.database
+                .from("tasks")
+                .select()
+                .eq("team_id", value: teamId)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+            
+            tasks = teamTasks
+        } catch {
+            print("Failed to load team data: \(error)")
+            errorMessage = "Failed to load team data"
+        }
+    }
+    
+    // MARK: - Event Management
+    func createEvent(title: String, description: String?, startDate: Date, endDate: Date?, location: String?, eventType: EventType) async throws {
+        guard let teamId = currentTeam?.id else { throw TeamError.noTeamSelected }
+        
+        let event = Event(
+            id: UUID(),
+            teamId: teamId,
+            title: title,
+            description: description,
+            startDate: startDate,
+            endDate: endDate,
+            location: location,
+            eventType: eventType,
+            status: .scheduled,
+            googleCalendarId: nil,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        
+        try await supabase.database
+            .from("events")
+            .insert(event)
+            .execute()
+        
+        await loadTeamData()
+    }
+    
+    func updateEvent(_ event: Event) async throws {
+        try await supabase.database
+            .from("events")
+            .update(event)
+            .eq("id", value: event.id)
+            .execute()
+        
+        await loadTeamData()
+    }
+    
+    func deleteEvent(_ event: Event) async throws {
+        try await supabase.database
+            .from("events")
+            .delete()
+            .eq("id", value: event.id)
+            .execute()
+        
+        await loadTeamData()
+    }
+    
+    // MARK: - Task Management
+    func createTask(title: String, description: String?, priority: TaskPriority, assigneeId: UUID?, dueDate: Date?) async throws {
+        guard let teamId = currentTeam?.id,
+              let currentUserId = supabase.auth.currentUser?.id else { throw TeamError.noTeamSelected }
+        
+        let task = Task(
+            id: UUID(),
+            teamId: teamId,
+            title: title,
+            description: description,
+            status: .todo,
+            priority: priority,
+            assigneeId: assigneeId,
+            dueDate: dueDate,
+            createdBy: currentUserId,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        
+        try await supabase.database
+            .from("tasks")
+            .insert(task)
+            .execute()
+        
+        await loadTeamData()
+    }
+    
+    func updateTask(_ task: Task) async throws {
+        try await supabase.database
+            .from("tasks")
+            .update(task)
+            .eq("id", value: task.id)
+            .execute()
+        
+        await loadTeamData()
+    }
+    
+    func deleteTask(_ task: Task) async throws {
+        try await supabase.database
+            .from("tasks")
+            .delete()
+            .eq("id", value: task.id)
+            .execute()
+        
+        await loadTeamData()
+    }
+}
+
+enum TeamError: LocalizedError {
+    case noTeamSelected
+    case teamNotFound
+    case invalidTeamNumber
+    
+    var errorDescription: String? {
+        switch self {
+        case .noTeamSelected:
+            return "No team selected"
+        case .teamNotFound:
+            return "Team not found"
+        case .invalidTeamNumber:
+            return "Invalid team number"
+        }
+    }
+}
+```
+
+## Part C: Modern UI Components
+
+### 2.5 Create Design System
+Create `Utils/DesignSystem.swift`:
+
+```swift
+import SwiftUI
+
+struct DesignSystem {
+    // MARK: - Colors
+    struct Colors {
+        static let primary = Color.blue
+        static let secondary = Color.purple
+        static let accent = Color.orange
+        static let success = Color.green
+        static let warning = Color.yellow
+        static let error = Color.red
+        static let background = Color(.systemBackground)
+        static let secondaryBackground = Color(.secondarySystemBackground)
+        static let tertiaryBackground = Color(.tertiarySystemBackground)
+    }
+    
+    // MARK: - Gradients
+    struct Gradients {
+        static let primary = LinearGradient(
+            colors: [Colors.primary, Colors.secondary],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        
+        static let card = LinearGradient(
+            colors: [Colors.background, Colors.secondaryBackground],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        
+        static let glass = LinearGradient(
+            colors: [Color.white.opacity(0.1), Color.white.opacity(0.05)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    
+    // MARK: - Spacing
+    struct Spacing {
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 16
+        static let lg: CGFloat = 24
+        static let xl: CGFloat = 32
+        static let xxl: CGFloat = 48
+    }
+    
+    // MARK: - Corner Radius
+    struct CornerRadius {
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 16
+        static let xl: CGFloat = 24
+    }
+    
+    // MARK: - Shadows
+    struct Shadows {
+        static let sm = Shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        static let md = Shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+        static let lg = Shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+    }
+}
+
+struct Shadow {
+    let color: Color
+    let radius: CGFloat
+    let x: CGFloat
+    let y: CGFloat
+}
+
+// MARK: - View Extensions
+extension View {
+    func glassmorphism() -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.lg)
+                    .fill(DesignSystem.Gradients.glass)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.lg)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+            )
+    }
+    
+    func neumorphism(isPressed: Bool = false) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                    .fill(DesignSystem.Colors.background)
+                    .shadow(
+                        color: isPressed ? .black.opacity(0.1) : .black.opacity(0.2),
+                        radius: isPressed ? 2 : 8,
+                        x: isPressed ? 1 : 4,
+                        y: isPressed ? 1 : 4
+                    )
+                    .shadow(
+                        color: isPressed ? .white.opacity(0.1) : .white.opacity(0.7),
+                        radius: isPressed ? 1 : 8,
+                        x: isPressed ? -1 : -4,
+                        y: isPressed ? -1 : -4
+                    )
+            )
+    }
+    
+    func cardStyle() -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.lg)
+                    .fill(DesignSystem.Gradients.card)
+                    .shadow(
+                        color: .black.opacity(0.1),
+                        radius: 8,
+                        x: 0,
+                        y: 4
+                    )
+            )
+    }
+}
+```
+
+## Part D: Team Management Views
+
+### 2.6 Create Team Creation View
+Create `Views/TeamCreationView.swift`:
+
+```swift
+import SwiftUI
+
+struct TeamCreationView: View {
+    @EnvironmentObject var teamService: TeamService
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var teamName = ""
+    @State private var teamNumber = ""
+    @State private var school = ""
+    @State private var city = ""
+    @State private var state = ""
+    @State private var showingJoinTeam = false
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: DesignSystem.Spacing.lg) {
+                    // Header
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        Image(systemName: "person.3.sequence.fill")
+                            .font(.system(size: 60))
+                            .foregroundStyle(DesignSystem.Gradients.primary)
+                        
+                        Text("Create Your Team")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                        
+                        Text("Set up your FTC team to start collaborating")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.top, DesignSystem.Spacing.lg)
+                    
+                    // Form
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        CustomTextField(
+                            title: "Team Name",
+                            text: $teamName,
+                            placeholder: "e.g., Robo Warriors"
+                        )
+                        
+                        CustomTextField(
+                            title: "Team Number",
+                            text: $teamNumber,
+                            placeholder: "e.g., 12345"
+                        )
+                        .keyboardType(.numberPad)
+                        
+                        CustomTextField(
+                            title: "School (Optional)",
+                            text: $school,
+                            placeholder: "e.g., Sample High School"
+                        )
+                        
+                        HStack(spacing: DesignSystem.Spacing.md) {
+                            CustomTextField(
+                                title: "City",
+                                text: $city,
+                                placeholder: "e.g., San Francisco"
+                            )
+                            
+                            CustomTextField(
+                                title: "State",
+                                text: $state,
+                                placeholder: "CA"
+                            )
+                        }
+                    }
+                    .padding(.horizontal, DesignSystem.Spacing.lg)
+                    
+                    // Action Buttons
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        Button(action: createTeam) {
+                            HStack {
+                                if teamService.isLoading {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .foregroundColor(.white)
+                                }
+                                Text("Create Team")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(DesignSystem.Gradients.primary)
+                            .foregroundColor(.white)
+                            .cornerRadius(DesignSystem.CornerRadius.md)
+                        }
+                        .disabled(teamService.isLoading || !isFormValid)
+                        
+                        Button(action: { showingJoinTeam = true }) {
+                            Text("Join Existing Team Instead")
+                                .font(.subheadline)
+                                .foregroundColor(DesignSystem.Colors.primary)
+                        }
+                    }
+                    .padding(.horizontal, DesignSystem.Spacing.lg)
+                    
+                    Spacer()
+                }
+            }
+            .navigationTitle("Team Setup")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingJoinTeam) {
+            TeamJoinView()
+        }
+    }
+    
+    private var isFormValid: Bool {
+        !teamName.isEmpty && !teamNumber.isEmpty
+    }
+    
+    private func createTeam() {
+        Task {
+            do {
+                try await teamService.createTeam(
+                    name: teamName,
+                    number: teamNumber,
+                    school: school.isEmpty ? nil : school,
+                    city: city.isEmpty ? nil : city,
+                    state: state.isEmpty ? nil : state
+                )
+                dismiss()
+            } catch {
+                // Error is handled by TeamService
+            }
+        }
+    }
+}
+
+struct CustomTextField: View {
+    let title: String
+    @Binding var text: String
+    let placeholder: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+            
+            TextField(placeholder, text: $text)
+                .textFieldStyle(CustomTextFieldStyle())
+        }
+    }
+}
+
+struct CustomTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                    .fill(DesignSystem.Colors.secondaryBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                            .stroke(DesignSystem.Colors.primary.opacity(0.3), lineWidth: 1)
+                    )
+            )
+    }
+}
+
+#Preview {
+    TeamCreationView()
+        .environmentObject(TeamService())
+}
+```
+
+### 2.7 Create Team Join View
+Create `Views/TeamJoinView.swift`:
+
+```swift
+import SwiftUI
+
+struct TeamJoinView: View {
+    @EnvironmentObject var teamService: TeamService
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var teamNumber = ""
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: DesignSystem.Spacing.lg) {
+                // Header
+                VStack(spacing: DesignSystem.Spacing.md) {
+                    Image(systemName: "person.badge.plus")
+                        .font(.system(size: 60))
+                        .foregroundStyle(DesignSystem.Gradients.primary)
+                    
+                    Text("Join a Team")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    
+                    Text("Enter the team number to join an existing team")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, DesignSystem.Spacing.xl)
+                
+                // Form
+                VStack(spacing: DesignSystem.Spacing.lg) {
+                    CustomTextField(
+                        title: "Team Number",
+                        text: $teamNumber,
+                        placeholder: "e.g., 12345"
+                    )
+                    .keyboardType(.numberPad)
+                    
+                    Button(action: joinTeam) {
+                        HStack {
+                            if teamService.isLoading {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .foregroundColor(.white)
+                            }
+                            Text("Join Team")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(DesignSystem.Gradients.primary)
+                        .foregroundColor(.white)
+                        .cornerRadius(DesignSystem.CornerRadius.md)
+                    }
+                    .disabled(teamService.isLoading || teamNumber.isEmpty)
+                }
+                .padding(.horizontal, DesignSystem.Spacing.lg)
+                
+                Spacer()
+            }
+            .navigationTitle("Join Team")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func joinTeam() {
+        Task {
+            do {
+                try await teamService.joinTeam(teamNumber: teamNumber)
+                dismiss()
+            } catch {
+                // Error is handled by TeamService
+            }
+        }
+    }
+}
+
+#Preview {
+    TeamJoinView()
+        .environmentObject(TeamService())
+}
+```
+
+## Part E: Enhanced Main Views
+
+### 2.8 Update MainTabView with Modern Design
+Update `Views/MainTabView.swift`:
+
+```swift
+//
+//  MainTabView.swift
+//  FTCHUB
+//
+//  Created by Kartheek Eadara on 10/27/25.
+//
+
+import SwiftUI
+
+struct MainTabView: View {
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var teamService = TeamService()
+    @State private var selectedTab = 0
+    
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            TeamView()
+                .environmentObject(teamService)
+                .tabItem {
+                    Image(systemName: selectedTab == 0 ? "person.3.fill" : "person.3")
+                    Text("Team")
+                }
+                .tag(0)
+            
+            InventoryView()
+                .tabItem {
+                    Image(systemName: selectedTab == 1 ? "cube.box.fill" : "cube.box")
+                    Text("Inventory")
+                }
+                .tag(1)
+            
+            ScoutingView()
+                .tabItem {
+                    Image(systemName: selectedTab == 2 ? "chart.bar.fill" : "chart.bar")
+                    Text("Scouting")
+                }
+                .tag(2)
+            
+            CompetitionView()
+                .tabItem {
+                    Image(systemName: selectedTab == 3 ? "trophy.fill" : "trophy")
+                    Text("Competition")
+                }
+                .tag(3)
+            
+            SettingsView()
+                .tabItem {
+                    Image(systemName: selectedTab == 4 ? "gear.fill" : "gear")
+                    Text("Settings")
+                }
+                .tag(4)
+        }
+        .accentColor(DesignSystem.Colors.primary)
+        .onAppear {
+            Task {
+                await teamService.loadTeamData()
+            }
+        }
+    }
+}
+
+// MARK: - Enhanced Team View
+struct TeamView: View {
+    @EnvironmentObject var teamService: TeamService
+    @State private var showingCreateTeam = false
+    @State private var showingJoinTeam = false
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if teamService.currentTeam == nil {
+                    NoTeamView(
+                        showingCreateTeam: $showingCreateTeam,
+                        showingJoinTeam: $showingJoinTeam
+                    )
+                } else {
+                    TeamDashboardView()
+                }
+            }
+            .navigationTitle("Team")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button("Create Team") {
+                            showingCreateTeam = true
+                        }
+                        Button("Join Team") {
+                            showingJoinTeam = true
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingCreateTeam) {
+            TeamCreationView()
+                .environmentObject(teamService)
+        }
+        .sheet(isPresented: $showingJoinTeam) {
+            TeamJoinView()
+                .environmentObject(teamService)
+        }
+    }
+}
+
+struct NoTeamView: View {
+    @Binding var showingCreateTeam: Bool
+    @Binding var showingJoinTeam: Bool
+    
+    var body: some View {
+        VStack(spacing: DesignSystem.Spacing.xl) {
+            Spacer()
+            
+            VStack(spacing: DesignSystem.Spacing.lg) {
+                Image(systemName: "person.3")
+                    .font(.system(size: 80))
+                    .foregroundStyle(DesignSystem.Gradients.primary)
+                
+                Text("Welcome to FTC Team Hub!")
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .multilineTextAlignment(.center)
+                
+                Text("Create a new team or join an existing one to get started with managing your FTC team.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, DesignSystem.Spacing.lg)
+            }
+            
+            VStack(spacing: DesignSystem.Spacing.md) {
+                Button(action: { showingCreateTeam = true }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Create New Team")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(DesignSystem.Gradients.primary)
+                    .foregroundColor(.white)
+                    .cornerRadius(DesignSystem.CornerRadius.md)
+                }
+                
+                Button(action: { showingJoinTeam = true }) {
+                    HStack {
+                        Image(systemName: "person.badge.plus")
+                        Text("Join Existing Team")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(DesignSystem.Colors.secondaryBackground)
+                    .foregroundColor(DesignSystem.Colors.primary)
+                    .cornerRadius(DesignSystem.CornerRadius.md)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                            .stroke(DesignSystem.Colors.primary, lineWidth: 1)
+                    )
+                }
+            }
+            .padding(.horizontal, DesignSystem.Spacing.lg)
+            
+            Spacer()
+        }
+    }
+}
+
+struct TeamDashboardView: View {
+    @EnvironmentObject var teamService: TeamService
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: DesignSystem.Spacing.lg) {
+                // Team Header
+                TeamHeaderCard()
+                
+                // Quick Stats
+                QuickStatsCard()
+                
+                // Upcoming Events
+                UpcomingEventsCard()
+                
+                // Recent Tasks
+                RecentTasksCard()
+            }
+            .padding(DesignSystem.Spacing.md)
+        }
+        .refreshable {
+            await teamService.loadTeamData()
+        }
+    }
+}
+
+struct TeamHeaderCard: View {
+    @EnvironmentObject var teamService: TeamService
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    Text(teamService.currentTeam?.displayName ?? "Team")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    if let location = teamService.currentTeam?.location {
+                        Text(location)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                Circle()
+                    .fill(DesignSystem.Gradients.primary)
+                    .frame(width: 60, height: 60)
+                    .overlay(
+                        Text(teamService.currentTeam?.number ?? "?")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                    )
+            }
+            
+            HStack {
+                Label("\(teamService.teamMembers.count) Members", systemImage: "person.2.fill")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Label("Active", systemImage: "circle.fill")
+                    .font(.caption)
+                    .foregroundColor(DesignSystem.Colors.success)
+            }
+        }
+        .padding()
+        .cardStyle()
+    }
+}
+
+struct QuickStatsCard: View {
+    @EnvironmentObject var teamService: TeamService
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Text("Quick Stats")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            HStack(spacing: DesignSystem.Spacing.lg) {
+                StatItem(
+                    title: "Events",
+                    value: "\(teamService.events.count)",
+                    icon: "calendar",
+                    color: DesignSystem.Colors.primary
+                )
+                
+                StatItem(
+                    title: "Tasks",
+                    value: "\(teamService.tasks.count)",
+                    icon: "checklist",
+                    color: DesignSystem.Colors.accent
+                )
+                
+                StatItem(
+                    title: "Members",
+                    value: "\(teamService.teamMembers.count)",
+                    icon: "person.2",
+                    color: DesignSystem.Colors.secondary
+                )
+            }
+        }
+        .padding()
+        .cardStyle()
+    }
+}
+
+struct StatItem: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+            
+            Text(value)
+                .font(.title3)
+                .fontWeight(.bold)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct UpcomingEventsCard: View {
+    @EnvironmentObject var teamService: TeamService
+    
+    var upcomingEvents: [Event] {
+        teamService.events
+            .filter { $0.startDate > Date() }
+            .prefix(3)
+            .map { $0 }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack {
+                Text("Upcoming Events")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Button("View All") {
+                    // Navigate to events view
+                }
+                .font(.caption)
+                .foregroundColor(DesignSystem.Colors.primary)
+            }
+            
+            if upcomingEvents.isEmpty {
+                Text("No upcoming events")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(upcomingEvents) { event in
+                    EventRowView(event: event)
+                }
+            }
+        }
+        .padding()
+        .cardStyle()
+    }
+}
+
+struct EventRowView: View {
+    let event: Event
+    
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Circle()
+                .fill(Color(event.eventType.color))
+                .frame(width: 12, height: 12)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Text(event.startDate, style: .date)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Image(systemName: event.eventType.icon)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, DesignSystem.Spacing.sm)
+    }
+}
+
+struct RecentTasksCard: View {
+    @EnvironmentObject var teamService: TeamService
+    
+    var recentTasks: [Task] {
+        teamService.tasks.prefix(3).map { $0 }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack {
+                Text("Recent Tasks")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Button("View All") {
+                    // Navigate to tasks view
+                }
+                .font(.caption)
+                .foregroundColor(DesignSystem.Colors.primary)
+            }
+            
+            if recentTasks.isEmpty {
+                Text("No tasks yet")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(recentTasks) { task in
+                    TaskRowView(task: task)
+                }
+            }
+        }
+        .padding()
+        .cardStyle()
+    }
+}
+
+struct TaskRowView: View {
+    let task: Task
+    
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Circle()
+                .fill(Color(task.status.color))
+                .frame(width: 12, height: 12)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(task.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Text(task.status.displayName)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            if task.priority == .urgent {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundColor(DesignSystem.Colors.error)
+            }
+        }
+        .padding(.vertical, DesignSystem.Spacing.sm)
+    }
+}
+
+// MARK: - Placeholder Views (Updated)
+struct InventoryView: View {
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Image(systemName: "cube.box")
+                    .font(.system(size: 60))
+                    .foregroundColor(.blue)
+                
+                Text("Parts Inventory")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                Text("Coming in Step 3")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Text("• Parts tracking\n• Order management\n• Low stock alerts\n• Troubleshooting logs")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .navigationTitle("Inventory")
+        }
+    }
+}
+
+struct ScoutingView: View {
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Image(systemName: "chart.bar")
+                    .font(.system(size: 60))
+                    .foregroundColor(.blue)
+                
+                Text("Scouting & Analytics")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                Text("Coming in Step 4")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Text("• Match scouting forms\n• Data analytics\n• Alliance selection\n• Strategy planning")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .navigationTitle("Scouting")
+        }
+    }
+}
+
+struct CompetitionView: View {
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Image(systemName: "trophy")
+                    .font(.system(size: 60))
+                    .foregroundColor(.blue)
+                
+                Text("Competition Tools")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                Text("Coming in Step 5")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Text("• Match schedule\n• Scoring calculator\n• Rules reference\n• Drive team timer")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .navigationTitle("Competition")
+        }
+    }
+}
+
+struct SettingsView: View {
+    @EnvironmentObject var authService: AuthService
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section {
+                    HStack {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 50, height: 50)
+                            .overlay(
+                                Text(authService.currentUser?.initials ?? "?")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                            )
+                        
+                        VStack(alignment: .leading) {
+                            Text(authService.currentUser?.displayName ?? "Unknown User")
+                                .font(.headline)
+                            Text(authService.currentUser?.email ?? "")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                }
+                
+                Section("Account") {
+                    Button("Edit Profile") {
+                        // TODO: Implement profile editing
+                    }
+                    
+                    Button("Change Password") {
+                        // TODO: Implement password change
+                    }
+                }
+                
+                Section("Team") {
+                    Button("Team Settings") {
+                        // TODO: Implement team settings
+                    }
+                    
+                    Button("Invite Members") {
+                        // TODO: Implement member invitation
+                    }
+                }
+                
+                Section("App") {
+                    Button("Notifications") {
+                        // TODO: Implement notification settings
+                    }
+                    
+                    Button("Data & Privacy") {
+                        // TODO: Implement privacy settings
+                    }
+                    
+                    Button("Help & Support") {
+                        // TODO: Implement help system
+                    }
+                }
+                
+                Section {
+                    Button("Sign Out", role: .destructive) {
+                        Task {
+                            try? await authService.signOut()
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Settings")
+        }
+    }
+}
+
+#Preview {
+    MainTabView()
+        .environmentObject(AuthService())
+}
+```
+
+## Part F: Testing & Verification
+
+### 2.9 Test the Implementation
+1. Build and run the app
+2. Test team creation flow
+3. Test team joining flow
+4. Verify data persistence in Supabase
+5. Test UI interactions and animations
+
+## Success Criteria
+- [ ] Team creation and joining functionality works
+- [ ] Data persists correctly in Supabase
+- [ ] Modern UI design is implemented
+- [ ] All views are responsive and accessible
+- [ ] Error handling is robust
+- [ ] Loading states are properly managed
+
+## Next Steps
+Once Step 2 is complete, Step 3 will focus on implementing the parts inventory and order management features with continued emphasis on modern UI design and user experience.
