@@ -16,26 +16,30 @@ class OfflineService: ObservableObject {
     @Published var isOfflineMode = false
     @Published var pendingSyncCount = 0
     @Published var lastSyncDate: Date?
+    @Published var storageInfo: StorageInfo?
+    @Published var syncStatus: SyncStatus?
     
     private let networkMonitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "NetworkMonitor")
     private let supabase = SupabaseService.shared.client
     
-    // Offline storage
-    private let offlineStorage = OfflineStorage()
-    private var syncQueue: [SyncOperation] = []
+    // Enhanced offline storage
+    private let localStorage = LocalStorage.shared
+    private let syncService = SyncService.shared
     
     init() {
         // Only start network monitoring if not in preview mode
         if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
             startNetworkMonitoring()
             loadOfflineData()
+            updateStorageInfo()
         } else {
             // Set mock values for previews
             self.isOnline = true
             self.isOfflineMode = false
             self.pendingSyncCount = 0
             self.lastSyncDate = Date()
+            self.storageInfo = StorageInfo(totalRecords: 0, storageSize: 0, lastModified: Date())
         }
     }
     
@@ -47,18 +51,24 @@ class OfflineService: ObservableObject {
                 if self?.isOnline == true {
                     await self?.syncPendingChanges()
                 }
+                self?.updateStorageInfo()
             }
         }
         networkMonitor.start(queue: queue)
     }
     
     // MARK: - Offline Data Management
-    func saveOfflineData<T: Codable>(_ data: T, key: String) {
-        offlineStorage.save(data, forKey: key)
+    func saveOfflineData<T: Codable>(_ data: T, tableName: String, id: String) {
+        localStorage.save(data, tableName: tableName, id: id)
+        updateStorageInfo()
     }
     
-    func loadOfflineData<T: Codable>(_ type: T.Type, key: String) -> T? {
-        return offlineStorage.load(type, forKey: key)
+    func loadOfflineData<T: Codable>(_ type: T.Type, tableName: String, id: String) -> T? {
+        return localStorage.load(type, tableName: tableName, id: id)
+    }
+    
+    func loadAllOfflineData<T: Codable>(_ type: T.Type, tableName: String) -> [T] {
+        return localStorage.loadAll(type, tableName: tableName)
     }
     
     private func loadOfflineData() {
@@ -72,6 +82,9 @@ class OfflineService: ObservableObject {
     
     // MARK: - Offline Operations
     func createOfflineEvent(_ event: Event) async {
+        // Always save locally first
+        saveOfflineData(event, tableName: "events", id: event.id.uuidString)
+        
         if isOnline {
             do {
                 try await supabase
@@ -79,78 +92,81 @@ class OfflineService: ObservableObject {
                     .insert(event)
                     .execute() as! Event
             } catch {
-                // If online save fails, queue for offline
+                // If online save fails, queue for offline sync
                 queueOfflineOperation(.createEvent(event))
             }
         } else {
             queueOfflineOperation(.createEvent(event))
         }
-        
-        // Always save locally for offline access
-        saveOfflineData(event, key: "event_\(event.id)")
     }
     
     func createOfflineInventoryItem(_ item: InventoryItem) async {
+        // Always save locally first
+        saveOfflineData(item, tableName: "inventory_items", id: item.id.uuidString)
+        
         if isOnline {
             do {
-                try await supabase
+                _ = try await supabase
                     .from("inventory_items")
                     .insert(item)
-                    .execute() as! Event
+                    .execute()
             } catch {
+                // If online save fails, queue for offline sync
                 queueOfflineOperation(.createInventoryItem(item))
             }
         } else {
             queueOfflineOperation(.createInventoryItem(item))
         }
-        
-        saveOfflineData(item, key: "inventory_\(item.id)")
     }
     
     func createOfflineScoutingReport(_ report: ScoutingReport) async {
+        // Always save locally first
+        saveOfflineData(report, tableName: "scouting_reports", id: report.id.uuidString)
+        
         if isOnline {
             do {
-                try await supabase
+                _ = try await supabase
                     .from("scouting_reports")
                     .insert(report)
-                    .execute() as! Event
+                    .execute()
             } catch {
+                // If online save fails, queue for offline sync
                 queueOfflineOperation(.createScoutingReport(report))
             }
         } else {
             queueOfflineOperation(.createScoutingReport(report))
         }
-        
-        saveOfflineData(report, key: "scouting_report_\(report.id)")
     }
     
     // MARK: - Sync Operations
     private func queueOfflineOperation(_ operation: SyncOperation) {
-        syncQueue.append(operation)
-        pendingSyncCount = syncQueue.count
+        // Add to sync queue using the new sync service
+        switch operation {
+        case .createEvent(let event):
+            if let data = try? JSONEncoder().encode(event) {
+                localStorage.addToSyncQueue(operationType: "CREATE", tableName: "events", recordId: event.id.uuidString, data: data)
+            }
+        case .createInventoryItem(let item):
+            if let data = try? JSONEncoder().encode(item) {
+                localStorage.addToSyncQueue(operationType: "CREATE", tableName: "inventory_items", recordId: item.id.uuidString, data: data)
+            }
+        case .createScoutingReport(let report):
+            if let data = try? JSONEncoder().encode(report) {
+                localStorage.addToSyncQueue(operationType: "CREATE", tableName: "scouting_reports", recordId: report.id.uuidString, data: data)
+            }
+        default:
+            // Handle other operations as needed
+            break
+        }
+        updateStorageInfo()
     }
     
     func syncPendingChanges() async {
         guard isOnline else { return }
         
         isOfflineMode = false
-        var successCount = 0
-        
-        for operation in syncQueue {
-            do {
-                try await performSyncOperation(operation)
-                successCount += 1
-            } catch {
-                print("Sync failed for operation: \(operation), error: \(error)")
-            }
-        }
-        
-        // Remove successful operations
-        if successCount > 0 {
-            syncQueue.removeFirst(successCount)
-            pendingSyncCount = syncQueue.count
-            lastSyncDate = Date()
-        }
+        await syncService.performFullSync()
+        updateStorageInfo()
     }
     
     private func performSyncOperation(_ operation: SyncOperation) async throws {
@@ -243,58 +259,43 @@ class OfflineService: ObservableObject {
             await syncPendingChanges()
         }
     }
+    
+    // MARK: - Storage Management
+    private func updateStorageInfo() {
+        storageInfo = localStorage.getStorageInfo()
+        syncStatus = syncService.getSyncStatus()
+        pendingSyncCount = syncStatus?.pendingOperations ?? 0
+        lastSyncDate = syncStatus?.lastSyncDate
+    }
+    
+    func clearAllOfflineData() {
+        localStorage.clearAllData()
+        updateStorageInfo()
+    }
+    
+    func getStorageInfo() -> StorageInfo? {
+        return storageInfo
+    }
+    
+    func getSyncStatus() -> SyncStatus? {
+        return syncStatus
+    }
+    
+    // MARK: - Manual Sync
+    func syncNow() async {
+        await syncService.syncNow()
+        updateStorageInfo()
+    }
+    
+    func clearSyncQueue() {
+        syncService.clearSyncQueue()
+        updateStorageInfo()
+    }
 }
 
-// MARK: - Offline Storage
-class OfflineStorage {
-    private let fileManager = FileManager.default
-    private let documentsDirectory: URL
-    
-    init() {
-        documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-    }
-    
-    func save<T: Codable>(_ data: T, forKey key: String) {
-        let url = documentsDirectory.appendingPathComponent("\(key).json")
-        
-        do {
-            let encodedData = try JSONEncoder().encode(data)
-            try encodedData.write(to: url)
-        } catch {
-            print("Failed to save offline data: \(error)")
-        }
-    }
-    
-    func load<T: Codable>(_ type: T.Type, forKey key: String) -> T? {
-        let url = documentsDirectory.appendingPathComponent("\(key).json")
-        
-        guard fileManager.fileExists(atPath: url.path) else { return nil }
-        
-        do {
-            let data = try Data(contentsOf: url)
-            return try JSONDecoder().decode(type, from: data)
-        } catch {
-            print("Failed to load offline data: \(error)")
-            return nil
-        }
-    }
-    
-    func delete(forKey key: String) {
-        let url = documentsDirectory.appendingPathComponent("\(key).json")
-        try? fileManager.removeItem(at: url)
-    }
-    
-    func clearAll() {
-        do {
-            let files = try fileManager.contentsOfDirectory(at: documentsDirectory, includingPropertiesForKeys: nil)
-            for file in files where file.pathExtension == "json" {
-                try fileManager.removeItem(at: file)
-            }
-        } catch {
-            print("Failed to clear offline data: \(error)")
-        }
-    }
-}
+// MARK: - Legacy Support (kept for compatibility)
+// The old OfflineStorage class has been replaced by LocalStorage
+// This enum is kept for backward compatibility with existing sync operations
 
 // MARK: - Sync Operations
 enum SyncOperation {
