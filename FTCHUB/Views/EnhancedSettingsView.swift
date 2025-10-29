@@ -103,11 +103,19 @@ struct EnhancedSettingsView: View {
                         )
                     }
                     
-                    NavigationLink(destination: FinanceSettingsView()) {
+                    NavigationLink(destination: FinancialDashboardView()) {
                         SettingsRow(
                             icon: "dollarsign.circle.fill",
+                            title: "Financial Management",
+                            subtitle: "Orders, budgets, and vendors"
+                        )
+                    }
+                    
+                    NavigationLink(destination: FinanceSettingsView()) {
+                        SettingsRow(
+                            icon: "chart.bar.fill",
                             title: "Finance Settings",
-                            subtitle: "Manage orders and budget tracking"
+                            subtitle: "Configure financial preferences"
                         )
                     }
                 }
