@@ -40,7 +40,8 @@ class ScoutingService: ObservableObject {
         do {
             // TODO: Replace with actual team_id from AuthService.currentUser.teamId
             guard let teamId = UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11") else { // Example UUID
-                errorMessage = "Team ID not available."
+                // Use mock data when no team ID
+                loadMockData()
                 return
             }
             
@@ -63,9 +64,16 @@ class ScoutingService: ObservableObject {
             self.scoutingTemplates = templates
             self.scoutingReports = reports
         } catch {
-            errorMessage = error.localizedDescription
-            print("Error loading scouting data: \(error)")
+            // If Supabase fails (no connection, not configured, etc), use mock data
+            print("Supabase connection failed, using mock data: \(error)")
+            loadMockData()
+            errorMessage = nil // Clear error since we're falling back to mock data
         }
+    }
+    
+    private func loadMockData() {
+        self.scoutingTemplates = [ScoutingTemplate.sample]
+        self.scoutingReports = [ScoutingReport.sample]
     }
     
     // MARK: - Template Operations

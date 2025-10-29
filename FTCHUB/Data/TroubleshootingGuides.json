@@ -1,0 +1,426 @@
+[
+  {
+    "id": "motor-not-working",
+    "title": "Motor Not Working",
+    "category": "Motors",
+    "difficulty": "Easy",
+    "timeEstimate": "5-10 minutes",
+    "tags": ["motor", "electrical", "power"],
+    "symptoms": [
+      "Motor doesn't spin when commanded",
+      "Motor makes humming sound but doesn't move",
+      "Motor works intermittently"
+    ],
+    "causes": [
+      "Loose wire connections",
+      "Faulty motor controller",
+      "Incorrect motor configuration",
+      "Dead motor",
+      "Low battery voltage"
+    ],
+    "solutions": [
+      {
+        "step": 1,
+        "action": "Check all wire connections",
+        "details": "Ensure motor wires are securely connected to the motor controller and the controller is properly connected to the hub.",
+        "image": null
+      },
+      {
+        "step": 2,
+        "action": "Verify motor configuration",
+        "details": "In the robot controller app, check that the motor is configured on the correct port with the right direction.",
+        "image": null
+      },
+      {
+        "step": 3,
+        "action": "Test with different motor",
+        "details": "Swap with a known working motor to isolate if the issue is the motor or controller.",
+        "image": null
+      },
+      {
+        "step": 4,
+        "action": "Check battery voltage",
+        "details": "Ensure battery is charged above 12V. Low voltage can cause motors to not work properly.",
+        "image": null
+      }
+    ],
+    "prevention": [
+      "Use zip ties or strain relief for wire management",
+      "Label all motor ports clearly",
+      "Check connections before each match",
+      "Keep spare motors available"
+    ],
+    "relatedIssues": ["battery-draining-fast", "servo-not-responding"]
+  },
+  {
+    "id": "robot-disconnecting",
+    "title": "Robot Keeps Disconnecting",
+    "category": "Electronics",
+    "difficulty": "Medium",
+    "timeEstimate": "15-30 minutes",
+    "tags": ["wireless", "connection", "control"],
+    "symptoms": [
+      "Robot disconnects during operation",
+      "Driver Station shows connection drops",
+      "Intermittent control response"
+    ],
+    "causes": [
+      "WiFi interference",
+      "Loose antenna connections",
+      "Low battery voltage",
+      "Control Hub overheating",
+      "Damaged cables"
+    ],
+    "solutions": [
+      {
+        "step": 1,
+        "action": "Check WiFi channel",
+        "details": "Change WiFi channel to avoid interference. Use channels 1, 6, or 11 for best results.",
+        "image": null
+      },
+      {
+        "step": 2,
+        "action": "Secure antenna",
+        "details": "Ensure WiFi antenna is properly screwed in and positioned away from metal components.",
+        "image": null
+      },
+      {
+        "step": 3,
+        "action": "Update firmware",
+        "details": "Check for and install latest Control Hub and Driver Station firmware updates.",
+        "image": null
+      },
+      {
+        "step": 4,
+        "action": "Check battery health",
+        "details": "Test with a fully charged, known good battery. Replace if battery is old or damaged.",
+        "image": null
+      }
+    ],
+    "prevention": [
+      "Keep Control Hub cool with proper ventilation",
+      "Use quality USB cables",
+      "Maintain battery health",
+      "Avoid running near other robots during testing"
+    ],
+    "relatedIssues": ["camera-not-working", "sensors-giving-bad-data"]
+  },
+  {
+    "id": "servo-not-responding",
+    "title": "Servo Not Responding",
+    "category": "Servos",
+    "difficulty": "Easy",
+    "timeEstimate": "5-10 minutes",
+    "tags": ["servo", "mechanical", "control"],
+    "symptoms": [
+      "Servo doesn't move to commanded position",
+      "Servo vibrates or jitters",
+      "Servo moves to wrong position"
+    ],
+    "causes": [
+      "Incorrect port configuration",
+      "Servo cable loose or damaged",
+      "Servo mechanically bound",
+      "Servo overloaded",
+      "Power supply issue"
+    ],
+    "solutions": [
+      {
+        "step": 1,
+        "action": "Check servo configuration",
+        "details": "Verify servo is configured on correct port in robot controller configuration.",
+        "image": null
+      },
+      {
+        "step": 2,
+        "action": "Test servo range",
+        "details": "Use telemetry to command servo to 0, 0.5, and 1.0 positions to verify full range.",
+        "image": null
+      },
+      {
+        "step": 3,
+        "action": "Check mechanical binding",
+        "details": "Disconnect servo from mechanism and test. If it works freely, check for mechanical binding.",
+        "image": null
+      },
+      {
+        "step": 4,
+        "action": "Verify power",
+        "details": "Ensure servo is getting proper 5V power from the hub. Check all servo connections.",
+        "image": null
+      }
+    ],
+    "prevention": [
+      "Don't overload servos beyond spec",
+      "Use appropriate servo for application",
+      "Secure servo cables with zip ties",
+      "Regular servo testing"
+    ],
+    "relatedIssues": ["motor-not-working", "mechanical-binding"]
+  },
+  {
+    "id": "wheels-slipping",
+    "title": "Wheels Slipping on Field",
+    "category": "Drivetrain",
+    "difficulty": "Easy",
+    "timeEstimate": "10-15 minutes",
+    "tags": ["drivetrain", "wheels", "traction"],
+    "symptoms": [
+      "Robot doesn't drive straight",
+      "Wheels spin without moving robot",
+      "Reduced pushing power"
+    ],
+    "causes": [
+      "Worn wheel treads",
+      "Incorrect wheel pressure",
+      "Weight distribution issues",
+      "Debris on wheels",
+      "Floor surface too slippery"
+    ],
+    "solutions": [
+      {
+        "step": 1,
+        "action": "Clean wheels",
+        "details": "Remove all debris, dust, and oil from wheel surfaces using isopropyl alcohol.",
+        "image": null
+      },
+      {
+        "step": 2,
+        "action": "Check weight distribution",
+        "details": "Ensure weight is evenly distributed. Add weight over drive wheels if needed.",
+        "image": null
+      },
+      {
+        "step": 3,
+        "action": "Replace worn wheels",
+        "details": "If treads are worn smooth, replace with new wheels or rotate wheel positions.",
+        "image": null
+      },
+      {
+        "step": 4,
+        "action": "Adjust wheel type",
+        "details": "Consider switching to higher traction wheels if consistently slipping.",
+        "image": null
+      }
+    ],
+    "prevention": [
+      "Clean wheels before each match",
+      "Rotate wheels regularly",
+      "Keep spare wheels in pit",
+      "Monitor tread wear"
+    ],
+    "relatedIssues": ["robot-too-slow", "drivetrain-making-noise"]
+  },
+  {
+    "id": "battery-draining-fast",
+    "title": "Battery Draining Too Fast",
+    "category": "Power",
+    "difficulty": "Medium",
+    "timeEstimate": "20-30 minutes",
+    "tags": ["battery", "power", "electrical"],
+    "symptoms": [
+      "Battery dies during match",
+      "Voltage drops quickly under load",
+      "Robot performance degrades mid-match"
+    ],
+    "causes": [
+      "Old or damaged battery",
+      "Excessive motor stall",
+      "Too many devices drawing power",
+      "Short circuit",
+      "Battery not fully charged"
+    ],
+    "solutions": [
+      {
+        "step": 1,
+        "action": "Test battery health",
+        "details": "Check voltage under load. Healthy battery should maintain >12V under normal operation.",
+        "image": null
+      },
+      {
+        "step": 2,
+        "action": "Reduce power draw",
+        "details": "Identify mechanisms that stall frequently. Reduce load or add gearing.",
+        "image": null
+      },
+      {
+        "step": 3,
+        "action": "Check for shorts",
+        "details": "Inspect all wiring for damaged insulation or exposed conductors.",
+        "image": null
+      },
+      {
+        "step": 4,
+        "action": "Optimize code",
+        "details": "Ensure motors aren't fighting each other. Add current limiting in software.",
+        "image": null
+      }
+    ],
+    "prevention": [
+      "Charge batteries fully before use",
+      "Rotate batteries regularly",
+      "Replace batteries >2 years old",
+      "Design mechanisms to minimize stall"
+    ],
+    "relatedIssues": ["motor-not-working", "robot-disconnecting"]
+  },
+  {
+    "id": "autonomous-not-working",
+    "title": "Autonomous Mode Not Working",
+    "category": "Programming",
+    "difficulty": "Medium",
+    "timeEstimate": "15-45 minutes",
+    "tags": ["autonomous", "programming", "sensors"],
+    "symptoms": [
+      "Robot doesn't move in autonomous",
+      "Autonomous ends prematurely",
+      "Robot moves incorrectly"
+    ],
+    "causes": [
+      "Autonomous OpMode not selected",
+      "Code logic errors",
+      "Sensor calibration issues",
+      "Timing problems",
+      "Hardware not initialized"
+    ],
+    "solutions": [
+      {
+        "step": 1,
+        "action": "Verify OpMode selection",
+        "details": "Ensure correct autonomous OpMode is selected on Driver Station.",
+        "image": null
+      },
+      {
+        "step": 2,
+        "action": "Test with telemetry",
+        "details": "Add telemetry output to debug where code is failing. Check sensor readings.",
+        "image": null
+      },
+      {
+        "step": 3,
+        "action": "Calibrate sensors",
+        "details": "Recalibrate IMU, encoders, and color sensors before autonomous runs.",
+        "image": null
+      },
+      {
+        "step": 4,
+        "action": "Check initialization",
+        "details": "Verify all hardware is properly initialized in the init() method.",
+        "image": null
+      }
+    ],
+    "prevention": [
+      "Test autonomous before each competition",
+      "Keep backup autonomous programs",
+      "Document sensor calibration process",
+      "Regular code reviews"
+    ],
+    "relatedIssues": ["sensors-giving-bad-data", "robot-driving-crooked"]
+  },
+  {
+    "id": "mechanical-binding",
+    "title": "Mechanism Binding or Jamming",
+    "category": "Mechanical",
+    "difficulty": "Medium",
+    "timeEstimate": "20-45 minutes",
+    "tags": ["mechanical", "jamming", "alignment"],
+    "symptoms": [
+      "Mechanism doesn't move smoothly",
+      "Motor stalls when operating mechanism",
+      "Unusual noises during operation"
+    ],
+    "causes": [
+      "Misaligned components",
+      "Over-constrained design",
+      "Debris in mechanism",
+      "Loose fasteners",
+      "Bent structural elements"
+    ],
+    "solutions": [
+      {
+        "step": 1,
+        "action": "Identify binding point",
+        "details": "Manually move mechanism slowly to find where it binds. Listen for grinding.",
+        "image": null
+      },
+      {
+        "step": 2,
+        "action": "Check alignment",
+        "details": "Verify all axles, gears, and slides are properly aligned. Loosen and realign if needed.",
+        "image": null
+      },
+      {
+        "step": 3,
+        "action": "Inspect for damage",
+        "details": "Look for bent metal, cracked plastic, or stripped gears. Replace damaged parts.",
+        "image": null
+      },
+      {
+        "step": 4,
+        "action": "Lubricate appropriately",
+        "details": "Apply dry lubricant to sliding surfaces. Do not over-lubricate.",
+        "image": null
+      }
+    ],
+    "prevention": [
+      "Design with proper clearances",
+      "Use bearings for rotating shafts",
+      "Regular maintenance checks",
+      "Test under load before competition"
+    ],
+    "relatedIssues": ["servo-not-responding", "drivetrain-making-noise"]
+  },
+  {
+    "id": "camera-not-working",
+    "title": "Camera Not Detecting Objects",
+    "category": "Vision",
+    "difficulty": "Hard",
+    "timeEstimate": "30-60 minutes",
+    "tags": ["camera", "vision", "tensorflow"],
+    "symptoms": [
+      "Camera shows black screen",
+      "Objects not being detected",
+      "Poor detection accuracy"
+    ],
+    "causes": [
+      "Camera not configured properly",
+      "Lighting conditions",
+      "TensorFlow model issues",
+      "USB connection problem",
+      "Camera settings incorrect"
+    ],
+    "solutions": [
+      {
+        "step": 1,
+        "action": "Verify camera connection",
+        "details": "Check USB connection and camera appears in hardware configuration.",
+        "image": null
+      },
+      {
+        "step": 2,
+        "action": "Test camera feed",
+        "details": "Use built-in camera viewer to verify camera is working and focused.",
+        "image": null
+      },
+      {
+        "step": 3,
+        "action": "Adjust lighting",
+        "details": "Ensure adequate consistent lighting. Avoid backlighting and shadows.",
+        "image": null
+      },
+      {
+        "step": 4,
+        "action": "Update detection model",
+        "details": "Verify using correct TensorFlow model for current season. Retrain if needed.",
+        "image": null
+      }
+    ],
+    "prevention": [
+      "Protect camera from impacts",
+      "Use camera with good field of view",
+      "Test in various lighting conditions",
+      "Keep camera lens clean"
+    ],
+    "relatedIssues": ["autonomous-not-working", "sensors-giving-bad-data"]
+  }
+]

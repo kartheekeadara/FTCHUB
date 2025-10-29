@@ -8,17 +8,33 @@
 import Foundation
 import Combine
 import UserNotifications
+import UIKit
 
 @MainActor
 class NotificationService: NSObject, ObservableObject {
+    static let shared = NotificationService()
+    
     @Published var isAuthorized = false
     @Published var pendingNotifications: [UNNotificationRequest] = []
+    @Published var badgeCount: Int = 0
+    
+    // Notification preferences
+    @Published var enableEventReminders = true
+    @Published var enableMatchReminders = true
+    @Published var enableTaskReminders = true
+    @Published var enableInventoryAlerts = true
+    @Published var eventReminderMinutes = 15
+    @Published var matchReminderMinutes = 10
+    @Published var taskReminderHours = 24
     
     private let center = UNUserNotificationCenter.current()
+    private let defaults = UserDefaults.standard
     
     override init() {
         super.init()
         center.delegate = self
+        loadPreferences()
+        setupNotificationCategories()
         // Only check authorization if not in preview mode
         if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
             checkAuthorizationStatus()
@@ -27,6 +43,32 @@ class NotificationService: NSObject, ObservableObject {
             self.isAuthorized = false
             self.pendingNotifications = []
         }
+    }
+    
+    // MARK: - Preferences
+    private func loadPreferences() {
+        enableEventReminders = defaults.bool(forKey: "enableEventReminders")
+        enableMatchReminders = defaults.bool(forKey: "enableMatchReminders")
+        enableTaskReminders = defaults.bool(forKey: "enableTaskReminders")
+        enableInventoryAlerts = defaults.bool(forKey: "enableInventoryAlerts")
+        eventReminderMinutes = defaults.integer(forKey: "eventReminderMinutes")
+        matchReminderMinutes = defaults.integer(forKey: "matchReminderMinutes")
+        taskReminderHours = defaults.integer(forKey: "taskReminderHours")
+        
+        // Set defaults if not previously set
+        if eventReminderMinutes == 0 { eventReminderMinutes = 15 }
+        if matchReminderMinutes == 0 { matchReminderMinutes = 10 }
+        if taskReminderHours == 0 { taskReminderHours = 24 }
+    }
+    
+    func savePreferences() {
+        defaults.set(enableEventReminders, forKey: "enableEventReminders")
+        defaults.set(enableMatchReminders, forKey: "enableMatchReminders")
+        defaults.set(enableTaskReminders, forKey: "enableTaskReminders")
+        defaults.set(enableInventoryAlerts, forKey: "enableInventoryAlerts")
+        defaults.set(eventReminderMinutes, forKey: "eventReminderMinutes")
+        defaults.set(matchReminderMinutes, forKey: "matchReminderMinutes")
+        defaults.set(taskReminderHours, forKey: "taskReminderHours")
     }
     
     // MARK: - Authorization
@@ -48,14 +90,17 @@ class NotificationService: NSObject, ObservableObject {
     }
     
     // MARK: - Event Notifications
-    func scheduleEventReminder(for event: Event, minutesBefore: Int = 15) {
-        guard isAuthorized else { return }
+    func scheduleEventReminder(for event: Event, minutesBefore: Int? = nil) {
+        guard isAuthorized, enableEventReminders else { return }
+        
+        let minutes = minutesBefore ?? eventReminderMinutes
         
         let content = UNMutableNotificationContent()
         content.title = "Upcoming Event"
-        content.body = "\(event.title) starts in \(minutesBefore) minutes"
+        content.body = "\(event.title) starts in \(minutes) minutes"
         content.sound = .default
-        content.badge = 1
+        content.badge = NSNumber(value: badgeCount + 1)
+        content.categoryIdentifier = "EVENT_CATEGORY"
         
         // Add event data
         content.userInfo = [
@@ -63,14 +108,14 @@ class NotificationService: NSObject, ObservableObject {
             "eventType": event.eventType.rawValue
         ]
         
-        let reminderDate = event.startDate.addingTimeInterval(-TimeInterval(minutesBefore * 60))
+        let reminderDate = event.startDate.addingTimeInterval(-TimeInterval(minutes * 60))
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: max(1, reminderDate.timeIntervalSinceNow),
             repeats: false
         )
         
         let request = UNNotificationRequest(
-            identifier: "event_\(event.id)_\(minutesBefore)min",
+            identifier: "event_\(event.id)_\(minutes)min",
             content: content,
             trigger: trigger
         )
@@ -82,28 +127,31 @@ class NotificationService: NSObject, ObservableObject {
         }
     }
     
-    func scheduleMatchReminder(for match: Match, minutesBefore: Int = 10) {
-        guard isAuthorized else { return }
+    func scheduleMatchReminder(for match: Match, minutesBefore: Int? = nil) {
+        guard isAuthorized, enableMatchReminders else { return }
+        
+        let minutes = minutesBefore ?? matchReminderMinutes
         
         let content = UNMutableNotificationContent()
         content.title = "Match Starting Soon"
-        content.body = "Match \(match.matchNumber) starts in \(minutesBefore) minutes"
+        content.body = "Match \(match.matchNumber) starts in \(minutes) minutes"
         content.sound = .default
-        content.badge = 1
+        content.badge = NSNumber(value: badgeCount + 1)
+        content.categoryIdentifier = "MATCH_CATEGORY"
         
         content.userInfo = [
             "matchId": match.id.uuidString,
             "matchNumber": match.matchNumber
         ]
         
-        let reminderDate = match.scheduledTime.addingTimeInterval(-TimeInterval(minutesBefore * 60))
+        let reminderDate = match.scheduledTime.addingTimeInterval(-TimeInterval(minutes * 60))
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: max(1, reminderDate.timeIntervalSinceNow),
             repeats: false
         )
         
         let request = UNNotificationRequest(
-            identifier: "match_\(match.id)_\(minutesBefore)min",
+            identifier: "match_\(match.id)_\(minutes)min",
             content: content,
             trigger: trigger
         )
@@ -117,7 +165,7 @@ class NotificationService: NSObject, ObservableObject {
     
     // MARK: - Inventory Notifications
     func scheduleLowStockAlert(for item: InventoryItem) {
-        guard isAuthorized else { return }
+        guard isAuthorized, enableInventoryAlerts else { return }
         
         let content = UNMutableNotificationContent()
         content.title = "Low Stock Alert"
@@ -144,7 +192,7 @@ class NotificationService: NSObject, ObservableObject {
     }
     
     func scheduleOutOfStockAlert(for item: InventoryItem) {
-        guard isAuthorized else { return }
+        guard isAuthorized, enableInventoryAlerts else { return }
         
         let content = UNMutableNotificationContent()
         content.title = "Out of Stock Alert"
@@ -171,28 +219,31 @@ class NotificationService: NSObject, ObservableObject {
     }
     
     // MARK: - Task Notifications
-    func scheduleTaskReminder(for task: TeamTask, hoursBefore: Int = 24) {
-        guard isAuthorized, let dueDate = task.dueDate else { return }
+    func scheduleTaskReminder(for task: TeamTask, hoursBefore: Int? = nil) {
+        guard isAuthorized, enableTaskReminders, let dueDate = task.dueDate else { return }
+        
+        let hours = hoursBefore ?? taskReminderHours
         
         let content = UNMutableNotificationContent()
         content.title = "Task Due Soon"
-        content.body = "\(task.title) is due in \(hoursBefore) hours"
+        content.body = "\(task.title) is due in \(hours) hours"
         content.sound = .default
-        content.badge = 1
+        content.badge = NSNumber(value: badgeCount + 1)
+        content.categoryIdentifier = "TASK_CATEGORY"
         
         content.userInfo = [
             "taskId": task.id.uuidString,
             "taskTitle": task.title
         ]
         
-        let reminderDate = dueDate.addingTimeInterval(-TimeInterval(hoursBefore * 3600))
+        let reminderDate = dueDate.addingTimeInterval(-TimeInterval(hours * 3600))
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: max(1, reminderDate.timeIntervalSinceNow),
             repeats: false
         )
         
         let request = UNNotificationRequest(
-            identifier: "task_\(task.id)_\(hoursBefore)h",
+            identifier: "task_\(task.id)_\(hours)h",
             content: content,
             trigger: trigger
         )
@@ -238,6 +289,22 @@ class NotificationService: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Badge Management
+    func updateBadgeCount(_ count: Int) {
+        badgeCount = count
+        Task { @MainActor in
+            UIApplication.shared.applicationIconBadgeNumber = count
+        }
+    }
+    
+    func incrementBadge() {
+        updateBadgeCount(badgeCount + 1)
+    }
+    
+    func clearBadge() {
+        updateBadgeCount(0)
+    }
+    
     // MARK: - Notification Management
     func cancelNotification(withIdentifier identifier: String) {
         center.removePendingNotificationRequests(withIdentifiers: [identifier])
@@ -245,6 +312,7 @@ class NotificationService: NSObject, ObservableObject {
     
     func cancelAllNotifications() {
         center.removeAllPendingNotificationRequests()
+        clearBadge()
     }
     
     func getPendingNotifications() async {
@@ -284,7 +352,17 @@ class NotificationService: NSObject, ObservableObject {
             options: []
         )
         
-        center.setNotificationCategories([eventCategory, inventoryCategory, taskCategory])
+        let matchCategory = UNNotificationCategory(
+            identifier: "MATCH_CATEGORY",
+            actions: [
+                UNNotificationAction(identifier: "VIEW_MATCH", title: "View Match", options: [.foreground]),
+                UNNotificationAction(identifier: "SNOOZE_MATCH", title: "Snooze 5 min", options: [])
+            ],
+            intentIdentifiers: [],
+            options: []
+        )
+        
+        center.setNotificationCategories([eventCategory, inventoryCategory, taskCategory, matchCategory])
     }
 }
 

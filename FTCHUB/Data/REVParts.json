@@ -1,0 +1,302 @@
+[
+  {
+    "sku": "REV-41-1097",
+    "name": "HD Hex Motor",
+    "manufacturer": "REV Robotics",
+    "partNumber": "HD Hex Motor",
+    "category": "Motors",
+    "description": "High-torque motor with integrated encoder",
+    "unitCost": 49.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "voltage": "12V DC",
+      "rpm": "6000 RPM free speed",
+      "torque": "3.2 Nm stall torque",
+      "weight": "0.45 lbs"
+    }
+  },
+  {
+    "sku": "REV-41-1301",
+    "name": "Core Hex Motor",
+    "manufacturer": "REV Robotics",
+    "partNumber": "Core Hex Motor",
+    "category": "Motors",
+    "description": "Lightweight motor with built-in encoder",
+    "unitCost": 29.99,
+    "lowStockThreshold": 4,
+    "specifications": {
+      "voltage": "12V DC",
+      "rpm": "9000 RPM free speed",
+      "torque": "1.6 Nm stall torque",
+      "weight": "0.28 lbs"
+    }
+  },
+  {
+    "sku": "REV-41-1600",
+    "name": "Expansion Hub",
+    "manufacturer": "REV Robotics",
+    "partNumber": "Expansion Hub",
+    "category": "Electronics",
+    "description": "Main control hub for robot with motor controllers and servo ports",
+    "unitCost": 135.00,
+    "lowStockThreshold": 1,
+    "specifications": {
+      "motorPorts": "4",
+      "servoPorts": "6",
+      "i2cPorts": "4",
+      "digitalPorts": "8"
+    }
+  },
+  {
+    "sku": "REV-31-1153",
+    "name": "15mm Extrusion - 420mm",
+    "manufacturer": "REV Robotics",
+    "partNumber": "15mm Extrusion 420mm",
+    "category": "Structure",
+    "description": "Aluminum extrusion beam for structural support",
+    "unitCost": 5.99,
+    "lowStockThreshold": 10,
+    "specifications": {
+      "length": "420mm",
+      "width": "15mm",
+      "material": "Aluminum"
+    }
+  },
+  {
+    "sku": "REV-31-1408",
+    "name": "Bracket - 90 Degree",
+    "manufacturer": "REV Robotics",
+    "partNumber": "90 Degree Bracket",
+    "category": "Structure",
+    "description": "90-degree bracket for connecting extrusions",
+    "unitCost": 1.99,
+    "lowStockThreshold": 20,
+    "specifications": {
+      "angle": "90 degrees",
+      "material": "Aluminum"
+    }
+  },
+  {
+    "sku": "REV-41-1267",
+    "name": "UltraP Hex Servo",
+    "manufacturer": "REV Robotics",
+    "partNumber": "UltraP Servo",
+    "category": "Servos",
+    "description": "High-torque servo with 25-tooth output",
+    "unitCost": 24.99,
+    "lowStockThreshold": 4,
+    "specifications": {
+      "torque": "17.5 kg-cm",
+      "speed": "0.14 sec/60°",
+      "voltage": "4.8-6V"
+    }
+  },
+  {
+    "sku": "REV-41-1300",
+    "name": "Smart Robot Servo",
+    "manufacturer": "REV Robotics",
+    "partNumber": "Smart Servo",
+    "category": "Servos",
+    "description": "Programmable servo with position feedback",
+    "unitCost": 49.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "torque": "15 kg-cm",
+      "speed": "0.17 sec/60°",
+      "voltage": "6V"
+    }
+  },
+  {
+    "sku": "REV-41-1623",
+    "name": "2M Distance Sensor",
+    "manufacturer": "REV Robotics",
+    "partNumber": "2M Distance",
+    "category": "Sensors",
+    "description": "Time-of-flight distance sensor with 2m range",
+    "unitCost": 24.99,
+    "lowStockThreshold": 3,
+    "specifications": {
+      "range": "2 meters",
+      "interface": "I2C",
+      "accuracy": "±1%"
+    }
+  },
+  {
+    "sku": "REV-31-1505",
+    "name": "Color Sensor",
+    "manufacturer": "REV Robotics",
+    "partNumber": "Color Sensor V3",
+    "category": "Sensors",
+    "description": "RGB color and distance sensor",
+    "unitCost": 19.99,
+    "lowStockThreshold": 3,
+    "specifications": {
+      "range": "10cm",
+      "interface": "I2C",
+      "colors": "RGB + White"
+    }
+  },
+  {
+    "sku": "REV-31-1269",
+    "name": "Mecanum Wheel - 75mm",
+    "manufacturer": "REV Robotics",
+    "partNumber": "75mm Mecanum",
+    "category": "Wheels",
+    "description": "Omni-directional mecanum wheel",
+    "unitCost": 21.99,
+    "lowStockThreshold": 8,
+    "specifications": {
+      "diameter": "75mm",
+      "width": "50mm",
+      "load": "25 lbs per wheel"
+    }
+  },
+  {
+    "sku": "REV-41-1354",
+    "name": "Omni Wheel - 90mm",
+    "manufacturer": "REV Robotics",
+    "partNumber": "90mm Omni",
+    "category": "Wheels",
+    "description": "Multi-directional omni wheel",
+    "unitCost": 12.99,
+    "lowStockThreshold": 8,
+    "specifications": {
+      "diameter": "90mm",
+      "width": "35mm",
+      "rollers": "8"
+    }
+  },
+  {
+    "sku": "REV-41-1432",
+    "name": "Traction Wheel - 90mm",
+    "manufacturer": "REV Robotics",
+    "partNumber": "90mm Traction",
+    "category": "Wheels",
+    "description": "High-traction grip wheel",
+    "unitCost": 7.99,
+    "lowStockThreshold": 8,
+    "specifications": {
+      "diameter": "90mm",
+      "width": "20mm",
+      "material": "TPU"
+    }
+  },
+  {
+    "sku": "REV-41-1347",
+    "name": "15mm Hex Hub - 5mm Bore",
+    "manufacturer": "REV Robotics",
+    "partNumber": "Hex Hub 5mm",
+    "category": "Hardware",
+    "description": "Hex hub for mounting wheels to motors",
+    "unitCost": 3.99,
+    "lowStockThreshold": 10,
+    "specifications": {
+      "bore": "5mm",
+      "pattern": "15mm Hex",
+      "material": "Aluminum"
+    }
+  },
+  {
+    "sku": "REV-41-1327",
+    "name": "Battery - 12V 3000mAh",
+    "manufacturer": "REV Robotics",
+    "partNumber": "Slim Battery",
+    "category": "Power",
+    "description": "Slim profile rechargeable battery",
+    "unitCost": 49.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "voltage": "12V",
+      "capacity": "3000mAh",
+      "weight": "0.95 lbs"
+    }
+  },
+  {
+    "sku": "REV-41-1122",
+    "name": "Blinkin LED Driver",
+    "manufacturer": "REV Robotics",
+    "partNumber": "Blinkin",
+    "category": "Electronics",
+    "description": "LED strip driver with PWM control",
+    "unitCost": 29.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "outputs": "2 channels",
+      "maxCurrent": "5A per channel",
+      "patterns": "100+"
+    }
+  },
+  {
+    "sku": "REV-31-1387",
+    "name": "Touch Sensor",
+    "manufacturer": "REV Robotics",
+    "partNumber": "Touch Sensor",
+    "category": "Sensors",
+    "description": "Digital limit switch sensor",
+    "unitCost": 8.99,
+    "lowStockThreshold": 6,
+    "specifications": {
+      "type": "Digital",
+      "force": "50g activation"
+    }
+  },
+  {
+    "sku": "REV-41-1360",
+    "name": "LED Indicator",
+    "manufacturer": "REV Robotics",
+    "partNumber": "LED Indicator",
+    "category": "Electronics",
+    "description": "Status indicator LED module",
+    "unitCost": 4.99,
+    "lowStockThreshold": 10,
+    "specifications": {
+      "colors": "RGB",
+      "voltage": "5V"
+    }
+  },
+  {
+    "sku": "REV-31-1410",
+    "name": "Chain - #25, 10ft",
+    "manufacturer": "REV Robotics",
+    "partNumber": "#25 Chain",
+    "category": "Power Transmission",
+    "description": "Roller chain for drive systems",
+    "unitCost": 12.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "size": "#25",
+      "length": "10 feet",
+      "pitch": "1/4 inch"
+    }
+  },
+  {
+    "sku": "REV-41-1431",
+    "name": "15T Sprocket - 5mm Bore",
+    "manufacturer": "REV Robotics",
+    "partNumber": "15T Sprocket",
+    "category": "Power Transmission",
+    "description": "Chain sprocket for #25 chain",
+    "unitCost": 5.99,
+    "lowStockThreshold": 10,
+    "specifications": {
+      "teeth": "15",
+      "bore": "5mm",
+      "chain": "#25"
+    }
+  },
+  {
+    "sku": "REV-41-1324",
+    "name": "UltraPlanetary Gearbox Kit",
+    "manufacturer": "REV Robotics",
+    "partNumber": "UltraPlanetary",
+    "category": "Gearboxes",
+    "description": "Modular planetary gearbox system",
+    "unitCost": 89.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "ratios": "3:1, 4:1, 5:1",
+      "stages": "Up to 3",
+      "maxTorque": "50 Nm"
+    }
+  }
+]

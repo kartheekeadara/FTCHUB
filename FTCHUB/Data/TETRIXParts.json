@@ -1,0 +1,302 @@
+[
+  {
+    "sku": "W39530",
+    "name": "MAX TorqueNADO Motor",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39530",
+    "category": "Motors",
+    "description": "High-torque DC motor with integrated encoder",
+    "unitCost": 44.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "voltage": "12V DC",
+      "rpm": "5880 RPM free speed",
+      "torque": "3.7 Nm stall torque",
+      "encoder": "Built-in quadrature"
+    }
+  },
+  {
+    "sku": "W39529",
+    "name": "MAX DC Gear Motor",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39529",
+    "category": "Motors",
+    "description": "Geared DC motor with encoder",
+    "unitCost": 39.99,
+    "lowStockThreshold": 4,
+    "specifications": {
+      "voltage": "12V DC",
+      "gearRatio": "60:1",
+      "rpm": "152 RPM output",
+      "encoder": "Quadrature"
+    }
+  },
+  {
+    "sku": "W39091",
+    "name": "Aluminum Channel - 16\"",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39091",
+    "category": "Structure",
+    "description": "Structural aluminum channel",
+    "unitCost": 6.99,
+    "lowStockThreshold": 10,
+    "specifications": {
+      "length": "16 inches",
+      "material": "Aluminum",
+      "finish": "Anodized"
+    }
+  },
+  {
+    "sku": "W39066",
+    "name": "90° Channel Connector",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39066",
+    "category": "Structure",
+    "description": "Right angle connector for channels",
+    "unitCost": 2.49,
+    "lowStockThreshold": 15,
+    "specifications": {
+      "angle": "90 degrees",
+      "material": "Steel",
+      "holes": "Multiple mounting"
+    }
+  },
+  {
+    "sku": "W44260",
+    "name": "MAX Servo Motor 180°",
+    "manufacturer": "TETRIX",
+    "partNumber": "W44260",
+    "category": "Servos",
+    "description": "180-degree rotation servo motor",
+    "unitCost": 29.99,
+    "lowStockThreshold": 4,
+    "specifications": {
+      "torque": "18 kg-cm",
+      "speed": "0.17 sec/60°",
+      "rotation": "180 degrees"
+    }
+  },
+  {
+    "sku": "W39512",
+    "name": "Mecanum Wheel Set",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39512",
+    "category": "Wheels",
+    "description": "Set of 4 mecanum wheels for omnidirectional drive",
+    "unitCost": 99.99,
+    "lowStockThreshold": 1,
+    "specifications": {
+      "diameter": "100mm",
+      "quantity": "4 wheels",
+      "rollers": "Double row"
+    }
+  },
+  {
+    "sku": "W39177",
+    "name": "Omni Wheel - 4\"",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39177",
+    "category": "Wheels",
+    "description": "Multi-directional omni wheel",
+    "unitCost": 14.99,
+    "lowStockThreshold": 8,
+    "specifications": {
+      "diameter": "4 inches",
+      "rollers": "12",
+      "material": "Delrin rollers"
+    }
+  },
+  {
+    "sku": "W39046",
+    "name": "Traction Wheel - 3\"",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39046",
+    "category": "Wheels",
+    "description": "High-traction rubber wheel",
+    "unitCost": 5.99,
+    "lowStockThreshold": 8,
+    "specifications": {
+      "diameter": "3 inches",
+      "material": "Rubber",
+      "tread": "Diamond pattern"
+    }
+  },
+  {
+    "sku": "W39057",
+    "name": "Hub Adapter - Motor Mount",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39057",
+    "category": "Hardware",
+    "description": "Adapter for mounting wheels to motors",
+    "unitCost": 4.49,
+    "lowStockThreshold": 10,
+    "specifications": {
+      "compatibility": "All TETRIX motors",
+      "material": "Aluminum"
+    }
+  },
+  {
+    "sku": "W39129",
+    "name": "12V NiMH Battery",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39129",
+    "category": "Power",
+    "description": "Rechargeable NiMH battery pack",
+    "unitCost": 54.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "voltage": "12V",
+      "capacity": "3000mAh",
+      "chemistry": "NiMH"
+    }
+  },
+  {
+    "sku": "W39130",
+    "name": "Battery Charger",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39130",
+    "category": "Power",
+    "description": "Smart charger for TETRIX batteries",
+    "unitCost": 29.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "voltage": "12V",
+      "current": "2A",
+      "indicator": "LED status"
+    }
+  },
+  {
+    "sku": "W39135",
+    "name": "Touch Sensor",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39135",
+    "category": "Sensors",
+    "description": "Digital limit switch sensor",
+    "unitCost": 9.99,
+    "lowStockThreshold": 6,
+    "specifications": {
+      "type": "Digital",
+      "activation": "Press-button"
+    }
+  },
+  {
+    "sku": "W39523",
+    "name": "Ultrasonic Sensor",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39523",
+    "category": "Sensors",
+    "description": "Distance measurement sensor",
+    "unitCost": 24.99,
+    "lowStockThreshold": 3,
+    "specifications": {
+      "range": "3-300cm",
+      "accuracy": "±3mm",
+      "interface": "Digital"
+    }
+  },
+  {
+    "sku": "W39104",
+    "name": "Gear - 40 Tooth",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39104",
+    "category": "Power Transmission",
+    "description": "40-tooth gear for drive systems",
+    "unitCost": 3.99,
+    "lowStockThreshold": 10,
+    "specifications": {
+      "teeth": "40",
+      "pitch": "32 pitch",
+      "bore": "8mm"
+    }
+  },
+  {
+    "sku": "W39109",
+    "name": "Sprocket - 20 Tooth",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39109",
+    "category": "Power Transmission",
+    "description": "Chain sprocket for #25 chain",
+    "unitCost": 4.99,
+    "lowStockThreshold": 10,
+    "specifications": {
+      "teeth": "20",
+      "chain": "#25",
+      "bore": "8mm"
+    }
+  },
+  {
+    "sku": "W39140",
+    "name": "Chain - #25, 10ft",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39140",
+    "category": "Power Transmission",
+    "description": "Roller chain for drive systems",
+    "unitCost": 14.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "size": "#25",
+      "length": "10 feet",
+      "material": "Steel"
+    }
+  },
+  {
+    "sku": "W39071",
+    "name": "Flat Bracket",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39071",
+    "category": "Structure",
+    "description": "Flat mounting bracket",
+    "unitCost": 1.99,
+    "lowStockThreshold": 20,
+    "specifications": {
+      "length": "3 inches",
+      "material": "Steel",
+      "holes": "Pre-drilled"
+    }
+  },
+  {
+    "sku": "W39063",
+    "name": "Linear Slide Kit",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39063",
+    "category": "Motion",
+    "description": "Linear motion slide system",
+    "unitCost": 49.99,
+    "lowStockThreshold": 2,
+    "specifications": {
+      "travel": "12 inches",
+      "load": "50 lbs",
+      "material": "Aluminum rails"
+    }
+  },
+  {
+    "sku": "W39355",
+    "name": "Motor Controller",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39355",
+    "category": "Electronics",
+    "description": "DC motor controller module",
+    "unitCost": 39.99,
+    "lowStockThreshold": 3,
+    "specifications": {
+      "channels": "2",
+      "current": "20A continuous",
+      "voltage": "12V"
+    }
+  },
+  {
+    "sku": "W39163",
+    "name": "Bearing Flat - Pack of 4",
+    "manufacturer": "TETRIX",
+    "partNumber": "W39163",
+    "category": "Hardware",
+    "description": "Flat bearing pack for smooth rotation",
+    "unitCost": 6.99,
+    "lowStockThreshold": 8,
+    "specifications": {
+      "quantity": "4",
+      "bore": "8mm",
+      "type": "Flanged"
+    }
+  }
+]

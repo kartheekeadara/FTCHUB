@@ -107,11 +107,11 @@ class InventoryService: ObservableObject {
             
             self.inventoryItems = items
         } catch {
-            errorMessage = error.localizedDescription
-            print("Error loading inventory items: \(error)")
+            print("Supabase connection failed, using sample data: \(error)")
             
-            // For now, use sample data if Supabase fails
+            // Use sample data if Supabase fails (no connection, not configured, etc)
             self.inventoryItems = InventoryItem.sampleItems
+            errorMessage = nil // Clear error since we're falling back to sample data
         }
     }
     

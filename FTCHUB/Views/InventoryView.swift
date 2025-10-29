@@ -185,21 +185,21 @@ struct InventoryQuickStatsSection: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DesignSystem.Spacing.md) {
-                StatCard(
+                SimpleStatCard(
                     title: "Total Items",
                     value: "\(totalItems)",
                     icon: "cube.box.fill",
                     color: DesignSystem.Colors.primary
                 )
                 
-                StatCard(
+                SimpleStatCard(
                     title: "Low Stock",
                     value: "\(lowStockCount)",
                     icon: "exclamationmark.triangle.fill",
                     color: DesignSystem.Colors.warning
                 )
                 
-                StatCard(
+                SimpleStatCard(
                     title: "Out of Stock",
                     value: "\(outOfStockCount)",
                     icon: "xmark.circle.fill",
@@ -212,7 +212,7 @@ struct InventoryQuickStatsSection: View {
     }
 }
 
-struct StatCard: View {
+struct SimpleStatCard: View {
     let title: String
     let value: String
     let icon: String

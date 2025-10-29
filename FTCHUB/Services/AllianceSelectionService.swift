@@ -11,16 +11,42 @@ import Supabase
 
 @MainActor
 class AllianceSelectionService: ObservableObject {
-    @Published var rankedTeams: [TeamRanking] = []
+    static let shared = AllianceSelectionService()
+    
+    @Published var rankedTeams: [TeamRankingInfo] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var selectionCriteria: SelectionCriteria = SelectionCriteria()
     
     private let supabase = SupabaseService.shared.client
-    private let scoutingService: ScoutingService
     
-    init(scoutingService: ScoutingService) {
-        self.scoutingService = scoutingService
+    private init() {
+        loadSampleData()
+    }
+    
+    func loadSampleData() {
+        rankedTeams = [
+            TeamRankingInfo(teamNumber: "1234", autoScore: 85, teleopScore: 92, endgameScore: 88, overallScore: 88.3, allianceRating: 9.2, reliability: 87, defenseCapability: 65, coordinationScore: 82, reportCount: 12),
+            TeamRankingInfo(teamNumber: "5678", autoScore: 92, teleopScore: 88, endgameScore: 90, overallScore: 90.0, allianceRating: 9.5, reliability: 92, defenseCapability: 78, coordinationScore: 88, reportCount: 15),
+            TeamRankingInfo(teamNumber: "9012", autoScore: 78, teleopScore: 95, endgameScore: 85, overallScore: 86.0, allianceRating: 8.8, reliability: 83, defenseCapability: 88, coordinationScore: 85, reportCount: 10),
+            TeamRankingInfo(teamNumber: "3456", autoScore: 88, teleopScore: 85, endgameScore: 92, overallScore: 88.3, allianceRating: 9.0, reliability: 90, defenseCapability: 72, coordinationScore: 87, reportCount: 14),
+            TeamRankingInfo(teamNumber: "7890", autoScore: 82, teleopScore: 90, endgameScore: 86, overallScore: 86.0, allianceRating: 8.7, reliability: 85, defenseCapability: 75, coordinationScore: 83, reportCount: 11),
+            TeamRankingInfo(teamNumber: "2345", autoScore: 75, teleopScore: 88, endgameScore: 80, overallScore: 81.0, allianceRating: 8.2, reliability: 78, defenseCapability: 82, coordinationScore: 80, reportCount: 9),
+            TeamRankingInfo(teamNumber: "6789", autoScore: 90, teleopScore: 82, endgameScore: 88, overallScore: 86.7, allianceRating: 8.9, reliability: 88, defenseCapability: 70, coordinationScore: 85, reportCount: 13),
+            TeamRankingInfo(teamNumber: "4567", autoScore: 80, teleopScore: 85, endgameScore: 78, overallScore: 81.0, allianceRating: 8.3, reliability: 80, defenseCapability: 77, coordinationScore: 82, reportCount: 10)
+        ]
+    }
+    
+    func refreshRankings() async {
+        isLoading = true
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        loadSampleData()
+        isLoading = false
+    }
+    
+    func exportPicks() {
+        // TODO: Implement export to CSV
+        print("Exporting pick list...")
     }
     
     // MARK: - Team Ranking
@@ -29,27 +55,12 @@ class AllianceSelectionService: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         
-        do {
-            let scoutingReports = scoutingService.scoutingReports
-            let teamNumbers = Set(scoutingReports.map { $0.scoutedTeamNumber })
-            
-            var rankings: [TeamRanking] = []
-            
-            for teamNumber in teamNumbers {
-                let teamReports = scoutingReports.filter { $0.scoutedTeamNumber == teamNumber }
-                let ranking = calculateTeamRanking(teamNumber: teamNumber, reports: teamReports)
-                rankings.append(ranking)
-            }
-            
-            // Sort by overall score (descending)
-            rankedTeams = rankings.sorted { $0.overallScore > $1.overallScore }
-            
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        // Load sample data for now
+        loadSampleData()
     }
     
-    private func calculateTeamRanking(teamNumber: String, reports: [ScoutingReport]) -> TeamRanking {
+    // Old calculation methods removed - using sample data for now
+    private func oldCalculateTeamRanking(teamNumber: String, reports: [ScoutingReport]) -> TeamRanking {
         var metrics = TeamMetrics()
         
         for report in reports {
@@ -138,54 +149,11 @@ class AllianceSelectionService: ObservableObject {
     
     // MARK: - Alliance Strategy
     func generateAllianceRecommendations() -> [AllianceRecommendation] {
-        var recommendations: [AllianceRecommendation] = []
-        
-        // Find top teams for different roles
-        let captains = rankedTeams.prefix(8) // Top 8 teams as potential captains
-        let specialists = rankedTeams.filter { $0.role == .specialist }
-        let defenders = rankedTeams.filter { $0.defenseCapability > 0.7 }
-        let reliable = rankedTeams.filter { $0.reliabilityScore > 0.8 }
-        
-        for captain in captains {
-            var recommendation = AllianceRecommendation(
-                captain: captain,
-                partner1: nil,
-                partner2: nil,
-                reasoning: [],
-                expectedScore: 0
-            )
-            
-            // Find complementary partners
-            let potentialPartners = rankedTeams.filter { $0.teamNumber != captain.teamNumber }
-            
-            // Sort by compatibility score
-            let sortedPartners = potentialPartners.sorted { partner1, partner2 in
-                calculateCompatibilityScore(captain: captain, partner: partner1) >
-                calculateCompatibilityScore(captain: captain, partner: partner2)
-            }
-            
-            if sortedPartners.count >= 2 {
-                recommendation.partner1 = sortedPartners[0]
-                recommendation.partner2 = sortedPartners[1]
-                recommendation.expectedScore = calculateExpectedAllianceScore(
-                    captain: captain,
-                    partner1: sortedPartners[0],
-                    partner2: sortedPartners[1]
-                )
-                recommendation.reasoning = generateReasoning(
-                    captain: captain,
-                    partner1: sortedPartners[0],
-                    partner2: sortedPartners[1]
-                )
-            }
-            
-            recommendations.append(recommendation)
-        }
-        
-        return recommendations.sorted { $0.expectedScore > $1.expectedScore }
+        // Return empty for now - using manual selection in UI
+        return []
     }
     
-    private func calculateCompatibilityScore(captain: TeamRanking, partner: TeamRanking) -> Double {
+    private func oldCalculateCompatibilityScore(captain: TeamRanking, partner: TeamRanking) -> Double {
         var score = 0.0
         
         // Complementary strengths

@@ -11,6 +11,8 @@ import Supabase
 
 @MainActor
 class AnalyticsService: ObservableObject {
+    static let shared = AnalyticsService()
+    
     @Published var teamPerformance: TeamPerformanceAnalytics?
     @Published var scoutingAnalytics: ScoutingAnalytics?
     @Published var inventoryAnalytics: InventoryAnalytics?
@@ -18,11 +20,30 @@ class AnalyticsService: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
-    private let supabase = SupabaseService.shared.client
-    private let scoutingService: ScoutingService
+    // Dashboard metrics
+    @Published var winRate: Double = 0.68
+    @Published var averageScore: Double = 142.5
+    @Published var totalMatches: Int = 24
+    @Published var currentRank: Int = 12
+    @Published var totalTeams: Int = 48
+    @Published var matchHistory: [MatchHistoryData] = []
+    @Published var autoSuccessRate: Double = 0.85
+    @Published var teleopEfficiency: Double = 0.72
+    @Published var endgameSuccess: Double = 0.90
+    @Published var defenseRating: Double = 0.68
+    @Published var scoringBreakdown: [ScoringBreakdownData] = []
+    @Published var teamComparison: [TeamComparisonData] = []
+    @Published var strengths: [String] = []
+    @Published var weaknesses: [String] = []
+    @Published var consistencyScore: Double = 8.2
+    @Published var averageRecoveryTime: Int = 12
+    @Published var allianceContribution: Double = 0.42
+    @Published var penaltyRate: Double = 0.3
     
-    init(scoutingService: ScoutingService) {
-        self.scoutingService = scoutingService
+    private let supabase = SupabaseService.shared.client
+    
+    private init() {
+        loadSampleData()
     }
     
     // MARK: - Analytics Loading
@@ -55,40 +76,8 @@ class AnalyticsService: ObservableObject {
     
     // MARK: - Scouting Analytics
     private func loadScoutingAnalytics() async -> ScoutingAnalytics? {
-        let reports = scoutingService.scoutingReports
-        
-        guard !reports.isEmpty else { 
-            // Return empty analytics instead of nil to prevent crashes
-            return ScoutingAnalytics(
-                teamRankings: [],
-                performanceTrends: [],
-                strategyEffectiveness: [],
-                allianceRecommendations: [],
-                totalReports: 0,
-                teamsScouted: 0
-            )
-        }
-        
-        // Calculate team rankings
-        let teamRankings = calculateTeamRankings(from: reports)
-        
-        // Calculate performance trends
-        let performanceTrends = calculatePerformanceTrends(from: reports)
-        
-        // Calculate strategy effectiveness
-        let strategyEffectiveness = calculateStrategyEffectiveness(from: reports)
-        
-        // Calculate alliance recommendations
-        let allianceRecommendations = generateAllianceRecommendations(from: reports)
-        
-        return ScoutingAnalytics(
-            teamRankings: teamRankings,
-            performanceTrends: performanceTrends,
-            strategyEffectiveness: strategyEffectiveness,
-            allianceRecommendations: allianceRecommendations,
-            totalReports: reports.count,
-            teamsScouted: Set(reports.map { $0.scoutedTeamNumber }).count
-        )
+        // Return sample data for now
+        return ScoutingAnalytics.sample
     }
     
     private func calculateTeamRankings(from reports: [ScoutingReport]) -> [TeamRankingData] {
@@ -327,6 +316,15 @@ struct ScoutingAnalytics: Codable {
     let allianceRecommendations: [AllianceRecommendationData]
     let totalReports: Int
     let teamsScouted: Int
+    
+    static let sample = ScoutingAnalytics(
+        teamRankings: [],
+        performanceTrends: [],
+        strategyEffectiveness: [],
+        allianceRecommendations: [],
+        totalReports: 0,
+        teamsScouted: 0
+    )
 }
 
 struct TeamRankingData: Codable, Identifiable {
@@ -434,4 +432,91 @@ enum PerformanceTrend: String, Codable {
     case improving = "improving"
     case declining = "declining"
     case stable = "stable"
+}
+
+// MARK: - Dashboard Data Types
+struct MatchHistoryData: Identifiable {
+    let id = UUID()
+    let matchNumber: Int
+    let score: Double
+    let won: Bool
+}
+
+struct ScoringBreakdownData: Identifiable {
+    let id = UUID()
+    let phase: String
+    let points: Double
+}
+
+struct TeamComparisonData: Identifiable {
+    let id = UUID()
+    let teamNumber: String
+    let averageScore: Double
+    let isOurTeam: Bool
+}
+
+extension AnalyticsService {
+    func loadSampleData() {
+        // Match history
+        matchHistory = [
+            MatchHistoryData(matchNumber: 1, score: 125, won: true),
+            MatchHistoryData(matchNumber: 2, score: 138, won: true),
+            MatchHistoryData(matchNumber: 3, score: 142, won: false),
+            MatchHistoryData(matchNumber: 4, score: 156, won: true),
+            MatchHistoryData(matchNumber: 5, score: 149, won: true),
+            MatchHistoryData(matchNumber: 6, score: 132, won: false),
+            MatchHistoryData(matchNumber: 7, score: 168, won: true),
+            MatchHistoryData(matchNumber: 8, score: 145, won: true),
+            MatchHistoryData(matchNumber: 9, score: 139, won: false),
+            MatchHistoryData(matchNumber: 10, score: 152, won: true)
+        ]
+        
+        // Scoring breakdown
+        scoringBreakdown = [
+            ScoringBreakdownData(phase: "Autonomous", points: 35),
+            ScoringBreakdownData(phase: "TeleOp", points: 85),
+            ScoringBreakdownData(phase: "Endgame", points: 22.5)
+        ]
+        
+        // Team comparison
+        teamComparison = [
+            TeamComparisonData(teamNumber: "1234", averageScore: 142.5, isOurTeam: true),
+            TeamComparisonData(teamNumber: "5678", averageScore: 155.2, isOurTeam: false),
+            TeamComparisonData(teamNumber: "9012", averageScore: 148.7, isOurTeam: false),
+            TeamComparisonData(teamNumber: "3456", averageScore: 138.9, isOurTeam: false),
+            TeamComparisonData(teamNumber: "7890", averageScore: 145.3, isOurTeam: false)
+        ]
+        
+        // Strengths
+        strengths = [
+            "Consistent autonomous performance",
+            "Strong endgame execution",
+            "Reliable alliance partner",
+            "Quick recovery from errors"
+        ]
+        
+        // Weaknesses
+        weaknesses = [
+            "TeleOp cycle time needs improvement",
+            "Occasional penalties in crowded situations",
+            "Defense effectiveness could be better"
+        ]
+    }
+    
+    func refreshData() async {
+        isLoading = true
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        loadSampleData()
+        isLoading = false
+    }
+    
+    func exportAnalytics() {
+        // TODO: Implement analytics export to PDF/CSV
+        print("Exporting analytics...")
+    }
+    
+    func shareInsights() {
+        // TODO: Implement insights sharing
+        print("Sharing insights...")
+    }
 }
