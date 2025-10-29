@@ -342,9 +342,9 @@ struct AlliancePartnerCard: View {
 // MARK: - Emergency Contacts Section
 struct EmergencyContactsSection: View {
     let contacts = [
-        EmergencyContact(name: "Head Coach", phone: "(555) 123-4567", role: "Primary"),
-        EmergencyContact(name: "Event Coordinator", phone: "(555) 987-6543", role: "Event Staff"),
-        EmergencyContact(name: "Technical Advisor", phone: "(555) 456-7890", role: "Support")
+        CompetitionContact(name: "Head Coach", phone: "(555) 123-4567", role: "Primary"),
+        CompetitionContact(name: "Event Coordinator", phone: "(555) 987-6543", role: "Event Staff"),
+        CompetitionContact(name: "Technical Advisor", phone: "(555) 456-7890", role: "Support")
     ]
     
     var body: some View {
@@ -353,16 +353,16 @@ struct EmergencyContactsSection: View {
                 .font(.headline)
                 .padding(.horizontal)
             
-            ForEach(contacts) { contact in
-                ContactRow(contact: contact)
-                    .padding(.horizontal)
-            }
+                ForEach(contacts) { contact in
+                    CompetitionContactRow(contact: contact)
+                        .padding(.horizontal)
+                }
         }
     }
 }
 
-struct ContactRow: View {
-    let contact: EmergencyContact
+struct CompetitionContactRow: View {
+    let contact: CompetitionContact
     
     var body: some View {
         HStack {
@@ -420,7 +420,7 @@ struct ChecklistItem: Identifiable {
     var isCompleted: Bool
 }
 
-struct EmergencyContact: Identifiable {
+struct CompetitionContact: Identifiable {
     let id = UUID()
     let name: String
     let phone: String
