@@ -120,64 +120,76 @@ enum ScoutingFieldType: String, Codable, CaseIterable {
 // MARK: - Sample Data
 extension ScoutingTemplate {
     static var sample: ScoutingTemplate {
-        let formData = ScoutingFormData()
-        var template = ScoutingTemplate(
+        let teamId = UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11") ?? UUID()
+        return ScoutingTemplate.defaultDecode(teamId: teamId)
+    }
+    
+    static func defaultDecode(teamId: UUID, createdAt: Date = Date()) -> ScoutingTemplate {
+        var formData = ScoutingFormData()
+        formData.sections = decodeSections()
+        formData.lastModified = createdAt
+        
+        return ScoutingTemplate(
             id: UUID(),
-            teamId: UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")!,
-            name: "DECODE Match Scouting - 2025-2026",
-            description: "Standard scouting form for FTC DECODE matches",
+            teamId: teamId,
+            name: "DECODE Match Scouting",
+            description: "Standard FTC DECODE match template covering autonomous, teleop, and endgame performance.",
             isDefault: true,
             templateData: formData,
             createdBy: nil,
-            createdAt: Date(),
-            updatedAt: Date()
+            createdAt: createdAt,
+            updatedAt: createdAt
         )
-        
-        // Add DECODE-specific sections with green/purple artifact tracking
-        template.templateData.sections = [
+    }
+    
+    private static func decodeSections() -> [ScoutingSection] {
+        [
             ScoutingSection(title: "Pre-Match", fields: [
-                ScoutingField(type: .boolean, title: "Robot Visible Before Match", description: "Was robot present at inspection?"),
-                ScoutingField(type: .multipleChoice, title: "Alliance Color", isRequired: true, options: ["Red", "Blue"]),
-                ScoutingField(type: .notes, title: "Pre-Match Notes", description: "Any observations before match starts")
+                ScoutingField(type: .boolean, title: "Robot Visible Before Match", description: "Robot present at inspection?", isRequired: true, order: 0),
+                ScoutingField(type: .multipleChoice, title: "Alliance Color", isRequired: true, options: ["Red", "Blue"], order: 1),
+                ScoutingField(type: .multipleChoice, title: "Starting Position", isRequired: true, options: ["Gate 1", "Gate 2", "Fence 1", "Fence 2"], order: 2),
+                ScoutingField(type: .notes, title: "Pre-Match Notes", description: "Observations before match starts", order: 3)
             ], order: 0),
-            
             ScoutingSection(title: "Autonomous (30 seconds)", fields: [
-                ScoutingField(type: .boolean, title: "Green Artifacts Scored", description: "Did robot score green artifacts?"),
-                ScoutingField(type: .number, title: "Green Artifacts in Correct Zones", description: "Green artifacts in proper zones", minValue: 0, maxValue: 10),
-                ScoutingField(type: .boolean, title: "Purple Artifacts Scored", description: "Did robot score purple artifacts?"),
-                ScoutingField(type: .number, title: "Purple Artifacts in Correct Zones", description: "Purple artifacts in proper zones", minValue: 0, maxValue: 10),
-                ScoutingField(type: .rating, title: "Autonomous Reliability", description: "How consistent is their auto?", maxValue: 5)
+                ScoutingField(type: .boolean, title: "Green Artifacts Scored", description: "Green artifacts in correct scoring locations?", order: 0),
+                ScoutingField(type: .number, title: "Green Artifacts in Correct Zones", description: "Count of green artifacts correctly placed", minValue: 0, maxValue: 10, order: 1),
+                ScoutingField(type: .boolean, title: "Purple Artifacts Scored", description: "Purple artifacts in correct scoring locations?", order: 2),
+                ScoutingField(type: .number, title: "Purple Artifacts in Correct Zones", description: "Count of purple artifacts correctly placed", minValue: 0, maxValue: 10, order: 3),
+                ScoutingField(type: .boolean, title: "Robot Leaves Starting Zone", description: "Robot successfully crossed start line?", order: 4),
+                ScoutingField(type: .rating, title: "Autonomous Reliability", description: "Consistency of autonomous routine", maxValue: 5, order: 5),
+                ScoutingField(type: .notes, title: "Autonomous Notes", description: "Pattern route, classifier usage, notable events", order: 6)
             ], order: 1),
-            
             ScoutingSection(title: "Teleop (120 seconds)", fields: [
-                ScoutingField(type: .number, title: "Green Artifacts Placed", description: "Total green artifacts scored in teleop", minValue: 0, maxValue: 50),
-                ScoutingField(type: .number, title: "Purple Artifacts Placed", description: "Total purple artifacts scored in teleop", minValue: 0, maxValue: 50),
-                ScoutingField(type: .boolean, title: "Alliance Coordination", description: "Did team coordinate with alliance partner?"),
-                ScoutingField(type: .slider, title: "Driving Quality", description: "Rate the driver's skill", minValue: 1, maxValue: 5, step: 1),
-                ScoutingField(type: .slider, title: "Robot Speed", description: "How fast is their robot?", minValue: 1, maxValue: 5, step: 1),
-                ScoutingField(type: .multipleChoice, title: "Primary Strategy", isRequired: true, options: ["Offensive Scoring", "Defensive", "Mixed", "Artifact Collection"]),
-                ScoutingField(type: .boolean, title: "Defends Well", description: "Does this team play defense?"),
-                ScoutingField(type: .number, title: "Penalties Received", description: "Number of penalties earned", minValue: 0, maxValue: 10)
+                ScoutingField(type: .number, title: "Green Artifacts Placed", description: "Total green artifacts in teleop", minValue: 0, maxValue: 50, order: 0),
+                ScoutingField(type: .number, title: "Purple Artifacts Placed", description: "Total purple artifacts in teleop", minValue: 0, maxValue: 50, order: 1),
+                ScoutingField(type: .number, title: "Overflow / Gate Classifier Cycles", description: "Classifier cycles completed", minValue: 0, maxValue: 50, order: 2),
+                ScoutingField(type: .boolean, title: "Alliance Coordination", description: "Coordinated strategy with partner?", order: 3),
+                ScoutingField(type: .slider, title: "Driving Quality", description: "Driver control quality", minValue: 1, maxValue: 5, step: 1, order: 4),
+                ScoutingField(type: .slider, title: "Robot Speed", description: "Effective cycle time / speed", minValue: 1, maxValue: 5, step: 1, order: 5),
+                ScoutingField(type: .multipleChoice, title: "Primary Strategy Focus", isRequired: true, options: ["Classifier", "Overflow", "Defense", "Mixed Play"], order: 6),
+                ScoutingField(type: .boolean, title: "Defends Well", description: "Played effective defense", order: 7),
+                ScoutingField(type: .number, title: "Penalties Received", description: "# of penalties committed", minValue: 0, maxValue: 10, order: 8),
+                ScoutingField(type: .notes, title: "Teleop Notes", description: "Cycle paths, jams, mechanical issues", order: 9)
             ], order: 2),
-            
             ScoutingSection(title: "Endgame (30 seconds)", fields: [
-                ScoutingField(type: .boolean, title: "Final Artifacts Placed", description: "Did robot place additional artifacts in endgame?"),
-                ScoutingField(type: .number, title: "Additional Green Artifacts", description: "Green artifacts in endgame", minValue: 0, maxValue: 5),
-                ScoutingField(type: .number, title: "Additional Purple Artifacts", description: "Purple artifacts in endgame", minValue: 0, maxValue: 5),
-                ScoutingField(type: .boolean, title: "Robot Parked in Zone", description: "Did robot park in designated zone?", isRequired: true),
-                ScoutingField(type: .rating, title: "Endgame Execution", description: "How well did they execute endgame?", maxValue: 5)
+                ScoutingField(type: .boolean, title: "Final Artifacts Placed", description: "Additional artifacts during endgame", order: 0),
+                ScoutingField(type: .number, title: "Additional Green Artifacts", description: "Green artifacts placed in endgame", minValue: 0, maxValue: 5, order: 1),
+                ScoutingField(type: .number, title: "Additional Purple Artifacts", description: "Purple artifacts placed in endgame", minValue: 0, maxValue: 5, order: 2),
+                ScoutingField(type: .boolean, title: "Robot Parked in Zone", description: "Robot successfully parked?", isRequired: true, order: 3),
+                ScoutingField(type: .rating, title: "Endgame Execution", description: "Quality of endgame tasks", maxValue: 5, order: 4),
+                ScoutingField(type: .notes, title: "Endgame Notes", description: "Any last-second strategy or mishaps", order: 5)
             ], order: 3),
-            
             ScoutingSection(title: "Overall Assessment", fields: [
-                ScoutingField(type: .slider, title: "Overall Team Quality", description: "Overall ranking of team", minValue: 1, maxValue: 5, step: 1),
-                ScoutingField(type: .slider, title: "Alliance Selection Rating", description: "Would you pick this team?", minValue: 1, maxValue: 5, step: 1),
-                ScoutingField(type: .multipleChoice, title: "Robot Reliability", isRequired: true, options: ["Very Reliable", "Mostly Reliable", "Sometimes Broken", "Often Broken"]),
-                ScoutingField(type: .notes, title: "Artifact Strategy Notes", description: "How effective was their artifact strategy?"),
-                ScoutingField(type: .notes, title: "General Notes", description: "Additional observations, strategies observed, strengths/weaknesses"),
-                ScoutingField(type: .notes, title: "Alliance Selection Notes", description: "Specific reasons to pick or avoid this team")
+                ScoutingField(type: .slider, title: "Overall Team Quality", description: "Overall match performance rating", minValue: 1, maxValue: 5, step: 1, order: 0),
+                ScoutingField(type: .slider, title: "Alliance Selection Rating", description: "Would you pick this team?", minValue: 1, maxValue: 5, step: 1, order: 1),
+                ScoutingField(type: .multipleChoice, title: "Robot Reliability", isRequired: true, options: ["Very Reliable", "Mostly Reliable", "Occasional Issues", "Often Broken"], order: 2),
+                ScoutingField(type: .boolean, title: "Earned Movement RP", description: "Movement RP achieved?", order: 3),
+                ScoutingField(type: .boolean, title: "Earned Goal RP", description: "Goal RP achieved?", order: 4),
+                ScoutingField(type: .boolean, title: "Earned Pattern RP", description: "Pattern RP achieved?", order: 5),
+                ScoutingField(type: .notes, title: "Artifact Strategy Notes", description: "Classifier strategy, overflow funnels, etc.", order: 6),
+                ScoutingField(type: .notes, title: "General Notes", description: "Mechanical strengths, weaknesses, upgrades", order: 7),
+                ScoutingField(type: .notes, title: "Alliance Selection Notes", description: "Specific reasons to pick or avoid", order: 8)
             ], order: 4)
         ]
-        
-        return template
     }
 }

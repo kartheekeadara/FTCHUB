@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Budget: Identifiable, Codable {
+struct Budget: Identifiable, Codable, Hashable {
     let id: UUID
     let teamId: UUID
     let name: String
@@ -48,32 +48,20 @@ struct Budget: Identifiable, Codable {
         spentAmount > totalAmount
     }
     
-    static let sample = Budget(
-        id: UUID(),
-        teamId: UUID(),
-        name: "2025-2026 Season Budget",
-        description: "Main budget for DECODE season",
-        totalAmount: 10000,
-        startDate: Date().addingTimeInterval(-86400 * 30),
-        endDate: Date().addingTimeInterval(86400 * 150),
-        categories: [
-            BudgetCategory(name: "Parts & Materials", allocated: 4000, spent: 2500),
-            BudgetCategory(name: "Competition Fees", allocated: 2000, spent: 1500),
-            BudgetCategory(name: "Travel", allocated: 2000, spent: 500),
-            BudgetCategory(name: "Tools & Equipment", allocated: 1500, spent: 800),
-            BudgetCategory(name: "Outreach", allocated: 500, spent: 200)
-        ],
-        createdBy: nil,
-        createdAt: Date().addingTimeInterval(-86400 * 30),
-        updatedAt: Date()
-    )
 }
 
-struct BudgetCategory: Codable, Identifiable {
-    var id = UUID()
+struct BudgetCategory: Codable, Identifiable, Hashable {
+    var id: UUID
     let name: String
     let allocated: Decimal
     var spent: Decimal
+    
+    init(id: UUID = UUID(), name: String, allocated: Decimal, spent: Decimal = 0) {
+        self.id = id
+        self.name = name
+        self.allocated = allocated
+        self.spent = spent
+    }
     
     var remaining: Decimal {
         allocated - spent

@@ -17,6 +17,7 @@ class InventoryService: ObservableObject {
     @Published var searchText = ""
     @Published var selectedCategory: String? = nil
     @Published var sortOption: SortOption = .name
+    @Published private(set) var activeTeamId: UUID?
     
     enum SortOption: String, CaseIterable {
         case name = "Name"
@@ -85,15 +86,47 @@ class InventoryService: ObservableObject {
         return inventoryItems.filter { $0.quantityOnHand == 0 }
     }
     
+    func lowStockThreshold(for category: String?) -> Int {
+        let items = items(in: category)
+        guard !items.isEmpty else { return 1 }
+        let thresholds = items.map { $0.lowStockThreshold }
+        guard let average = thresholds.average else { return 1 }
+        return max(1, Int(round(average)))
+    }
+    
+    func items(in category: String?) -> [InventoryItem] {
+        inventoryItems.filter { item in
+            if let category = category, !category.isEmpty {
+                return item.category?.localizedCaseInsensitiveCompare(category) == .orderedSame
+            } else {
+                return item.category == nil || item.category?.isEmpty == true
+            }
+        }
+    }
+    
+    var currentTeamId: UUID? { activeTeamId }
+    var hasTeamContext: Bool { activeTeamId != nil }
+    
+    func updateTeamContext(teamId: UUID?) {
+        guard activeTeamId != teamId else { return }
+        activeTeamId = teamId
+        if teamId == nil {
+            inventoryItems = []
+            errorMessage = nil
+        } else {
+            Task { await loadInventoryItems() }
+        }
+    }
+    
     func loadInventoryItems() async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
         
         do {
-            // TODO: Replace with actual team_id from AuthService.currentUser.teamId
-            guard let teamId = UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11") else { // Example UUID
-                errorMessage = "Team ID not available."
+            guard let teamId = activeTeamId else {
+                inventoryItems = []
+                errorMessage = "Join or create a team to manage inventory."
                 return
             }
             
@@ -107,11 +140,12 @@ class InventoryService: ObservableObject {
             
             self.inventoryItems = items
         } catch {
-            print("Supabase connection failed, using sample data: \(error)")
+            DebugLog.log("Supabase connection failed, using sample data: \(error)")
             
             // Use sample data if Supabase fails (no connection, not configured, etc)
             self.inventoryItems = InventoryItem.sampleItems
             errorMessage = nil // Clear error since we're falling back to sample data
+            TelemetryService.shared.logError(error, context: ["action": "load_inventory"])
         }
     }
     
@@ -121,13 +155,23 @@ class InventoryService: ObservableObject {
         defer { isLoading = false }
         
         do {
+            guard let teamId = activeTeamId else {
+                errorMessage = "Join or create a team to manage inventory."
+                return
+            }
+            
+            var itemToSave = item
+            itemToSave.teamId = teamId
+            
             try await supabase
                 .from("inventory_items")
-                .insert(item)
+                .insert(itemToSave)
                 .execute()
             await loadInventoryItems()
+            TelemetryService.shared.logEvent("inventory_item_created")
         } catch {
             errorMessage = error.localizedDescription
+            TelemetryService.shared.logError(error, context: ["action": "create_inventory_item"])
             throw error
         }
     }
@@ -138,14 +182,28 @@ class InventoryService: ObservableObject {
         defer { isLoading = false }
         
         do {
+            guard let teamId = activeTeamId else {
+                errorMessage = "Join or create a team to manage inventory."
+                return
+            }
+            
+            let previousItem = inventoryItems.first { $0.id == item.id }
+            var updatedItem = item
+            updatedItem.teamId = teamId
+            
             try await supabase
                 .from("inventory_items")
-                .update(item)
-                .eq("id", value: item.id)
+                .update(updatedItem)
+                .eq("id", value: updatedItem.id)
                 .execute()
             await loadInventoryItems()
+            if let previousItem {
+                NotificationService.shared.handleInventoryStockChange(from: previousItem, to: updatedItem)
+            }
+            TelemetryService.shared.logEvent("inventory_item_updated")
         } catch {
             errorMessage = error.localizedDescription
+            TelemetryService.shared.logError(error, context: ["action": "update_inventory_item"])
             throw error
         }
     }
@@ -156,14 +214,21 @@ class InventoryService: ObservableObject {
         defer { isLoading = false }
         
         do {
+            guard activeTeamId != nil else {
+                errorMessage = "Join or create a team to manage inventory."
+                return
+            }
+            
             try await supabase
                 .from("inventory_items")
                 .delete()
                 .eq("id", value: item.id)
                 .execute()
             await loadInventoryItems()
+            TelemetryService.shared.logEvent("inventory_item_deleted")
         } catch {
             errorMessage = error.localizedDescription
+            TelemetryService.shared.logError(error, context: ["action": "delete_inventory_item"])
             throw error
         }
     }
@@ -191,5 +256,48 @@ class InventoryService: ObservableObject {
         
         // TODO: Log stock transaction
         // try await logStockTransaction(itemId: item.id, adjustment: adjustment, reason: reason)
+    }
+    
+    func updateLowStockThreshold(for category: String?, to threshold: Int) async throws {
+        guard let teamId = activeTeamId else {
+            errorMessage = "Join or create a team to manage inventory."
+            return
+        }
+        
+        let cappedThreshold = max(0, threshold)
+        let targets = items(in: category)
+        
+        guard !targets.isEmpty else { return }
+        
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        do {
+            for item in targets {
+                var updated = item
+                updated.teamId = teamId
+                updated.lowStockThreshold = cappedThreshold
+                try await supabase
+                    .from("inventory_items")
+                    .update(updated)
+                    .eq("id", value: updated.id)
+                    .execute()
+            }
+            await loadInventoryItems()
+            TelemetryService.shared.logEvent("inventory_threshold_updated", parameters: ["category": category ?? "uncategorized", "threshold": "\(cappedThreshold)"])
+        } catch {
+            errorMessage = error.localizedDescription
+            TelemetryService.shared.logError(error, context: ["action": "update_low_stock_threshold"])
+            throw error
+        }
+    }
+}
+
+private extension Array where Element == Int {
+    var average: Double? {
+        guard !isEmpty else { return nil }
+        let total = reduce(0, +)
+        return Double(total) / Double(count)
     }
 }

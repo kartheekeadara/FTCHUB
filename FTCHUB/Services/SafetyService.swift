@@ -28,7 +28,7 @@ class SafetyService: ObservableObject {
     
     // MARK: - Data Loading
     
-    func loadSafetyData(for studentId: UUID) async {
+    func loadSafetyData(for userId: UUID) async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
@@ -38,7 +38,7 @@ class SafetyService: ObservableObject {
             let consents: [ConsentRecord] = try await supabase
                 .from("consent_records")
                 .select()
-                .eq("student_id", value: studentId)
+                .eq("user_id", value: userId)
                 .order("created_at", ascending: false)
                 .execute()
                 .value
@@ -49,7 +49,7 @@ class SafetyService: ObservableObject {
             let contacts: [EmergencyContact] = try await supabase
                 .from("emergency_contacts")
                 .select()
-                .eq("student_id", value: studentId)
+                .eq("student_id", value: userId)
                 .order("is_primary", ascending: false)
                 .execute()
                 .value
@@ -57,14 +57,30 @@ class SafetyService: ObservableObject {
             self.emergencyContacts = contacts
             
         } catch {
-            print("Supabase connection failed, using sample data: \(error)")
+            DebugLog.log("Supabase connection failed, using sample data: \(error)")
             loadSampleData()
             errorMessage = nil
         }
     }
     
     private func loadSampleData() {
-        self.consentRecords = [ConsentRecord.sample]
+        // Create sample consent record
+        let sampleConsent = ConsentRecord(
+            id: UUID(),
+            userId: UUID(),
+            parentName: "Sample Parent",
+            parentEmail: "parent@example.com",
+            parentPhone: "123-456-7890",
+            relationship: "parent",
+            consentType: .coppa,
+            consentDate: Date(),
+            expirationDate: Calendar.current.date(byAdding: .year, value: 1, to: Date()),
+            verified: true,
+            verificationMethod: .email,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        self.consentRecords = [sampleConsent]
         self.emergencyContacts = [EmergencyContact.sample]
     }
     
@@ -80,7 +96,7 @@ class SafetyService: ObservableObject {
                 .from("consent_records")
                 .insert(consent)
                 .execute()
-            await loadSafetyData(for: consent.studentId)
+            await loadSafetyData(for: consent.userId)
         } catch {
             errorMessage = error.localizedDescription
             throw error
@@ -98,24 +114,26 @@ class SafetyService: ObservableObject {
                 .update(consent)
                 .eq("id", value: consent.id)
                 .execute()
-            await loadSafetyData(for: consent.studentId)
+            await loadSafetyData(for: consent.userId)
         } catch {
             errorMessage = error.localizedDescription
             throw error
         }
     }
     
-    func hasValidConsent(studentId: UUID, type: ConsentType) -> Bool {
+    func hasValidConsent(userId: UUID, type: ConsentRecord.ConsentType) -> Bool {
         consentRecords.first { record in
-            record.studentId == studentId &&
+            record.userId == userId &&
             record.consentType == type &&
             record.isValid
         } != nil
     }
     
-    func getMissingRequiredConsents(studentId: UUID) -> [ConsentType] {
-        ConsentType.allCases.filter { type in
-            type.isRequired && !hasValidConsent(studentId: studentId, type: type)
+    func getMissingRequiredConsents(userId: UUID) -> [ConsentRecord.ConsentType] {
+        ConsentRecord.ConsentType.allCases.filter { type in
+            // Note: ConsentRecord.ConsentType doesn't have isRequired property
+            // This is a simplified check - you may need to add isRequired to ConsentRecord.ConsentType
+            !hasValidConsent(userId: userId, type: type)
         }
     }
     
@@ -174,15 +192,15 @@ class SafetyService: ObservableObject {
         }
     }
     
-    func getPrimaryContact(studentId: UUID) -> EmergencyContact? {
-        emergencyContacts.first { $0.studentId == studentId && $0.isPrimary }
+    func getPrimaryContact(userId: UUID) -> EmergencyContact? {
+        emergencyContacts.first { $0.studentId == userId && $0.isPrimary }
     }
     
     // MARK: - Safety Checks
     
-    func isStudentSafe(studentId: UUID) -> SafetyStatus {
-        let missingConsents = getMissingRequiredConsents(studentId: studentId)
-        let hasEmergencyContact = !emergencyContacts.filter { $0.studentId == studentId }.isEmpty
+    func isStudentSafe(userId: UUID) -> SafetyStatus {
+        let missingConsents = getMissingRequiredConsents(userId: userId)
+        let hasEmergencyContact = !emergencyContacts.filter { $0.studentId == userId }.isEmpty
         
         if !missingConsents.isEmpty {
             return .missingConsent(missingConsents)
@@ -198,7 +216,7 @@ class SafetyService: ObservableObject {
 
 enum SafetyStatus {
     case compliant
-    case missingConsent([ConsentType])
+    case missingConsent([ConsentRecord.ConsentType])
     case missingEmergencyContact
     
     var isCompliant: Bool {

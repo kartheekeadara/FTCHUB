@@ -20,8 +20,18 @@ class SupabaseService: ObservableObject {
             // Use mock service for previews
             self.client = MockSupabaseService.shared.client
         } else {
+            // Security: Validate Supabase URL uses HTTPS
+            let urlString = Config.supabaseURL
+            guard SecurityUtils.validateSupabaseURL(urlString) else {
+                fatalError("Invalid Supabase URL. Must use HTTPS and be a valid Supabase domain.")
+            }
+            
+            guard let url = URL(string: urlString) else {
+                fatalError("Invalid Supabase URL format.")
+            }
+            
             self.client = SupabaseClient(
-                supabaseURL: URL(string: Config.supabaseURL)!,
+                supabaseURL: url,
                 supabaseKey: Config.supabaseAnonKey
             )
         }

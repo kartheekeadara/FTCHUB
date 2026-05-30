@@ -2,153 +2,142 @@
 //  OfflineIndicator.swift
 //  FTCHUB
 //
-//  Created by Kartheek Eadara on 10/27/25.
-//
 
 import SwiftUI
 
+/// A slim pill/capsule overlay that slides down from below the status bar.
+/// Never paints the status bar background red — uses a dark charcoal capsule instead.
 struct OfflineIndicator: View {
     @EnvironmentObject var offlineService: OfflineService
     @State private var showingDetails = false
-    
+    @State private var pulsing = false
+
+    private var isVisible: Bool {
+        !offlineService.isOnline || offlineService.pendingSyncCount > 0
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Main indicator bar
-            if !offlineService.isOnline || offlineService.pendingSyncCount > 0 {
-                HStack {
-                    Image(systemName: offlineService.isOnline ? "arrow.triangle.2.circlepath" : "wifi.slash")
-                        .foregroundColor(.white)
-                        .animation(.easeInOut(duration: 0.3), value: offlineService.isOnline)
-                    
-                    Text(offlineService.isOnline ? "Syncing..." : "Offline Mode")
-                        .foregroundColor(.white)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                    
-                    Spacer()
-                    
-                    if offlineService.pendingSyncCount > 0 {
-                        HStack(spacing: 4) {
-                            Text("\(offlineService.pendingSyncCount)")
-                                .foregroundColor(.white)
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.white.opacity(0.2))
-                                .cornerRadius(8)
-                            
-                            Text("pending")
-                                .foregroundColor(.white)
-                                .font(.caption)
-                                .fontWeight(.medium)
+        Group {
+            if isVisible {
+                Button(action: { showingDetails = true }) {
+                    HStack(spacing: 6) {
+                        if offlineService.isOnline {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(Color(red: 0.98, green: 0.74, blue: 0.33))
+                        } else {
+                            Circle()
+                                .fill(Color(red: 1.0, green: 0.42, blue: 0.42))
+                                .frame(width: 6, height: 6)
+                                .opacity(pulsing ? 0.4 : 1.0)
+                                .animation(.easeInOut(duration: 1.0).repeatForever(), value: pulsing)
+                        }
+
+                        Text(offlineService.isOnline ? "Syncing…" : "Offline")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(
+                                offlineService.isOnline
+                                    ? Color(red: 0.98, green: 0.74, blue: 0.33)
+                                    : Color(red: 1.0, green: 0.42, blue: 0.42)
+                            )
+
+                        if offlineService.pendingSyncCount > 0 {
+                            Text("· \(offlineService.pendingSyncCount)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.42).opacity(0.8))
                         }
                     }
-                    
-                    Button(action: { showingDetails.toggle() }) {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.white)
-                            .font(.caption)
-                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(
+                                offlineService.isOnline
+                                    ? Color(red: 0.14, green: 0.11, blue: 0.06)
+                                    : Color(red: 0.17, green: 0.10, blue: 0.10)
+                            )
+                            .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
+                    )
                 }
-                .padding(.horizontal, DesignSystem.Spacing.md)
-                .padding(.vertical, DesignSystem.Spacing.sm)
-                .background(offlineService.isOnline ? Color.orange : Color.red)
-                .transition(.move(edge: .top))
-                .animation(.easeInOut(duration: 0.3), value: offlineService.isOnline)
+                .buttonStyle(PlainButtonStyle())
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .onAppear { pulsing = !offlineService.isOnline }
+                .onChange(of: offlineService.isOnline) { _, online in
+                    pulsing = !online
+                }
             }
-            
-            // Details sheet
-            if showingDetails {
-                OfflineDetailsView()
-                    .transition(.opacity)
-            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: isVisible)
+        .sheet(isPresented: $showingDetails) {
+            OfflineDetailsSheet()
+                .environmentObject(offlineService)
+                .presentationDetents([.medium])
         }
     }
 }
 
-struct OfflineDetailsView: View {
+// MARK: - Details sheet (slim, dark themed)
+
+private struct OfflineDetailsSheet: View {
     @EnvironmentObject var offlineService: OfflineService
-    
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Offline Status")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                
-                Spacer()
-                
-                Button("Close") {
-                    // Close details
-                }
-                .font(.caption)
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                StatusRow(
-                    icon: "wifi",
-                    title: "Connection",
-                    value: offlineService.isOnline ? "Online" : "Offline",
-                    color: offlineService.isOnline ? .green : .red
-                )
-                
-                if let storageInfo = offlineService.storageInfo {
+        NavigationStack {
+            List {
+                Section {
                     StatusRow(
-                        icon: "internaldrive",
-                        title: "Local Storage",
-                        value: "\(storageInfo.totalRecords) records",
-                        color: .blue
+                        icon: "wifi",
+                        title: "Connection",
+                        value: offlineService.isOnline ? "Online" : "Offline",
+                        color: offlineService.isOnline ? .green : Color(red: 1.0, green: 0.42, blue: 0.42)
                     )
-                    
                     StatusRow(
-                        icon: "doc.text",
-                        title: "Storage Size",
-                        value: ByteCountFormatter.string(fromByteCount: storageInfo.storageSize, countStyle: .file),
-                        color: .blue
+                        icon: "arrow.triangle.2.circlepath",
+                        title: "Pending Sync",
+                        value: "\(offlineService.pendingSyncCount) operations",
+                        color: offlineService.pendingSyncCount > 0 ? DesignSystem.Colors.primary : DesignSystem.Colors.success
                     )
-                }
-                
-                StatusRow(
-                    icon: "arrow.triangle.2.circlepath",
-                    title: "Pending Sync",
-                    value: "\(offlineService.pendingSyncCount) operations",
-                    color: offlineService.pendingSyncCount > 0 ? .orange : .green
-                )
-                
-                if let lastSync = offlineService.lastSyncDate {
-                    StatusRow(
-                        icon: "clock",
-                        title: "Last Sync",
-                        value: lastSync.formatted(date: .omitted, time: .shortened),
-                        color: .gray
-                    )
-                }
-            }
-            
-            HStack(spacing: 12) {
-                Button("Sync Now") {
-                    Task {
-                        await offlineService.syncNow()
+                    if let lastSync = offlineService.lastSyncDate {
+                        StatusRow(
+                            icon: "clock",
+                            title: "Last Sync",
+                            value: lastSync.formatted(date: .omitted, time: .shortened),
+                            color: DesignSystem.Colors.textSecondary
+                        )
+                    }
+                    if let storageInfo = offlineService.storageInfo {
+                        StatusRow(
+                            icon: "internaldrive",
+                            title: "Local Records",
+                            value: "\(storageInfo.totalRecords)",
+                            color: .blue
+                        )
                     }
                 }
-                .buttonStyle(.bordered)
-                .disabled(!offlineService.isOnline)
-                
-                Button("Clear Queue") {
-                    offlineService.clearSyncQueue()
+
+                Section {
+                    Button("Sync Now") {
+                        Task { await offlineService.syncNow() }
+                    }
+                    .disabled(!offlineService.isOnline)
+                    .foregroundColor(offlineService.isOnline ? DesignSystem.Colors.primary : DesignSystem.Colors.textSecondary)
+
+                    Button("Clear Queue", role: .destructive) {
+                        offlineService.clearSyncQueue()
+                    }
+                    .disabled(offlineService.pendingSyncCount == 0)
                 }
-                .buttonStyle(.bordered)
-                .disabled(offlineService.pendingSyncCount == 0)
-                
-                Spacer()
+            }
+            .navigationTitle("Sync Status")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundColor(DesignSystem.Colors.primary)
+                }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 4)
-        .padding(.horizontal)
     }
 }
 
@@ -157,23 +146,19 @@ struct StatusRow: View {
     let title: String
     let value: String
     let color: Color
-    
+
     var body: some View {
         HStack {
             Image(systemName: icon)
                 .foregroundColor(color)
                 .frame(width: 20)
-            
             Text(title)
                 .font(.subheadline)
-                .foregroundColor(.primary)
-            
             Spacer()
-            
             Text(value)
                 .font(.subheadline)
                 .fontWeight(.medium)
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
         }
     }
 }
@@ -182,7 +167,6 @@ struct StatusRow: View {
     VStack {
         OfflineIndicator()
             .environmentObject(OfflineService())
-        
         Spacer()
     }
 }

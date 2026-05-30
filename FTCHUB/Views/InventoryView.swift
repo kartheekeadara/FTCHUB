@@ -9,62 +9,38 @@ import SwiftUI
 
 struct InventoryView: View {
     @EnvironmentObject var inventoryService: InventoryService
+    @EnvironmentObject var teamService: TeamService
     @State private var showingAddItem = false
     @State private var showingFilters = false
+    @State private var showingCatalog = false
     @State private var selectedItem: InventoryItem?
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Search and Filter Bar
-                SearchAndFilterBar(
-                    searchText: $inventoryService.searchText,
-                    selectedCategory: $inventoryService.selectedCategory,
-                    sortOption: $inventoryService.sortOption,
-                    categories: inventoryService.categories,
-                    showingFilters: $showingFilters
-                )
-                
-                // Quick Stats Cards
-                InventoryQuickStatsSection(
-                    totalItems: inventoryService.inventoryItems.count,
-                    lowStockCount: inventoryService.lowStockItems.count,
-                    outOfStockCount: inventoryService.outOfStockItems.count
-                )
-                
-                // Inventory List
-                if inventoryService.isLoading {
-                    LoadingView()
-                } else if inventoryService.filteredItems.isEmpty {
-                    EmptyInventoryView(searchText: inventoryService.searchText)
+        NavigationStack {
+            Group {
+                if inventoryService.hasTeamContext {
+                    inventoryContent
                 } else {
-                    EnhancedListView(
-                        items: inventoryService.filteredItems,
-                        onDelete: { item in
-                            Task {
-                                try await inventoryService.deleteInventoryItem(item: item)
-                            }
-                        },
-                        onEdit: { item in
-                            selectedItem = item
-                        }
-                    ) { item in
-                        Button(action: { selectedItem = item }) {
-                            InventoryItemCard(item: item) {
-                                selectedItem = item
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
+                    TeamAccessRequiredView(featureName: "Inventory")
                 }
             }
             .navigationTitle("Inventory")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingAddItem = true }) {
-                        Image(systemName: "plus")
-                            .font(.title2)
-                            .foregroundColor(DesignSystem.Colors.primary)
+                if inventoryService.hasTeamContext {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            showingCatalog = true
+                        } label: {
+                            Label("Catalog", systemImage: "book.pages")
+                        }
+                    }
+                    
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: { showingAddItem = true }) {
+                            Image(systemName: "plus")
+                                .font(.title2)
+                                .foregroundColor(DesignSystem.Colors.primary)
+                        }
                     }
                 }
             }
@@ -73,13 +49,92 @@ struct InventoryView: View {
             AddInventoryItemView()
                 .environmentObject(inventoryService)
         }
+        .sheet(isPresented: $showingCatalog) {
+            PartsCatalogBrowseView()
+                .environmentObject(inventoryService)
+                .environmentObject(teamService)
+        }
         .sheet(item: $selectedItem) { item in
             InventoryItemDetailView(item: item)
                 .environmentObject(inventoryService)
         }
         .onAppear {
             Task {
-                await inventoryService.loadInventoryItems()
+                if inventoryService.hasTeamContext {
+                    await inventoryService.loadInventoryItems()
+                }
+            }
+        }
+    }
+    
+    private var inventoryContent: some View {
+        VStack(spacing: 0) {
+            SearchAndFilterBar(
+                searchText: $inventoryService.searchText,
+                selectedCategory: $inventoryService.selectedCategory,
+                sortOption: $inventoryService.sortOption,
+                categories: inventoryService.categories,
+                showingFilters: $showingFilters
+            )
+            
+            InventoryQuickStatsSection(
+                totalItems: inventoryService.inventoryItems.count,
+                lowStockCount: inventoryService.lowStockItems.count,
+                outOfStockCount: inventoryService.outOfStockItems.count
+            )
+            
+            if inventoryService.isLoading {
+                LoadingView()
+            } else if inventoryService.filteredItems.isEmpty {
+                EmptyInventoryView(searchText: inventoryService.searchText)
+            } else {
+                inventoryListView
+            }
+        }
+    }
+    
+    private var inventoryListView: some View {
+        GeometryReader { geometry in
+            Group {
+                if geometry.size.width > geometry.size.height {
+                // Landscape: Use grid layout
+                ScrollView {
+                    LazyVGrid(columns: [
+                        GridItem(.flexible(), spacing: DesignSystem.Spacing.md),
+                        GridItem(.flexible(), spacing: DesignSystem.Spacing.md)
+                    ], spacing: DesignSystem.Spacing.md) {
+                        ForEach(inventoryService.filteredItems) { item in
+                            Button(action: { selectedItem = item }) {
+                                InventoryItemCard(item: item) {
+                                    selectedItem = item
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    .padding(DesignSystem.Spacing.md)
+                }
+            } else {
+                // Portrait: Use list view
+                EnhancedListView(
+                    items: inventoryService.filteredItems,
+                    onDelete: { item in
+                        Task {
+                            try await inventoryService.deleteInventoryItem(item: item)
+                        }
+                    },
+                    onEdit: { item in
+                        selectedItem = item
+                    }
+                ) { item in
+                    Button(action: { selectedItem = item }) {
+                        InventoryItemCard(item: item) {
+                            selectedItem = item
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                }
             }
         }
     }
@@ -366,8 +421,8 @@ struct StockStatusBadge: View {
         }
         .padding(.horizontal, DesignSystem.Spacing.sm)
         .padding(.vertical, DesignSystem.Spacing.xs)
-        .background(Color(status.color).opacity(0.1))
-        .foregroundColor(Color(status.color))
+        .background(Color.fromString(status.color).opacity(0.1))
+        .foregroundColor(Color.fromString(status.color))
         .cornerRadius(DesignSystem.CornerRadius.sm)
     }
 }
@@ -424,5 +479,5 @@ struct LoadingView: View {
 #Preview {
     InventoryView()
         .environmentObject(InventoryService())
-        .environmentObject(AuthService())
+        .environmentObject(TeamService())
 }

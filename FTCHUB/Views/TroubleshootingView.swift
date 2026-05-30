@@ -116,7 +116,7 @@ struct GuideDetailView: View {
                                 .font(.headline)
                             ForEach(guide.prevention, id: \.self) { tip in
                                 HStack(alignment: .top) {
-                                    Text("✓")
+                                    Text("")
                                     Text(tip)
                                 }
                                 .font(.body)

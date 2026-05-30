@@ -46,7 +46,7 @@ class AllianceSelectionService: ObservableObject {
     
     func exportPicks() {
         // TODO: Implement export to CSV
-        print("Exporting pick list...")
+        DebugLog.log("Exporting pick list...")
     }
     
     // MARK: - Team Ranking

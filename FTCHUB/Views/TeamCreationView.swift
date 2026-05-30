@@ -9,6 +9,7 @@ import SwiftUI
 
 struct TeamCreationView: View {
     @EnvironmentObject var teamService: TeamService
+    @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     
     @State private var teamName = ""

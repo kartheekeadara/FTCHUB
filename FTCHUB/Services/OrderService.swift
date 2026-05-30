@@ -16,11 +16,14 @@ class OrderService: ObservableObject {
     @Published var errorMessage: String? = nil
     
     private let supabase = SupabaseService.shared.client
+    private weak var authService: AuthService?
     
     init() {
-        Task {
-            await loadOrders()
-        }
+        // Don't auto-load in init - wait for team context
+    }
+    
+    func bindAuthService(_ service: AuthService) {
+        authService = service
     }
     
     // MARK: - Computed Properties
@@ -47,9 +50,32 @@ class OrderService: ObservableObject {
         defer { isLoading = false }
         
         do {
-            // TODO: Replace with actual team_id from AuthService.currentUser.teamId
-            guard let teamId = UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11") else {
-                errorMessage = "Team ID not available."
+            // Security: Get team ID from authenticated user
+            guard let userId = supabase.auth.currentUser?.id else {
+                errorMessage = "Authentication required."
+                self.orders = []
+                return
+            }
+            
+            // Get user's profile to verify team membership
+            let profile: Profile = try await supabase
+                .from("profiles")
+                .select()
+                .eq("id", value: userId)
+                .single()
+                .execute()
+                .value
+            
+            guard let teamId = profile.teamId else {
+                errorMessage = "Join or create a team to view orders."
+                self.orders = []
+                return
+            }
+            
+            // Security: Verify user is authenticated and belongs to team
+            guard SecurityUtils.verifyTeamMembership(userTeamId: profile.teamId, requestedTeamId: teamId) else {
+                errorMessage = "Unauthorized access."
+                self.orders = []
                 return
             }
             
@@ -58,15 +84,15 @@ class OrderService: ObservableObject {
                 .select()
                 .eq("team_id", value: teamId)
                 .order("order_date", ascending: false)
-                .execute() as! [Order]
+                .execute()
+                .value
             
             self.orders = orderList
         } catch {
-            errorMessage = error.localizedDescription
-            print("Error loading orders: \(error)")
-            
-            // For now, use sample data if Supabase fails
-            self.orders = Order.sampleOrders
+            errorMessage = "Unable to load orders. Please try again."
+            // Security: Don't log sensitive error details
+            TelemetryService.shared.logError(error, context: ["action": "load_orders"])
+            self.orders = []
         }
     }
     
@@ -76,14 +102,40 @@ class OrderService: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         
+        // Security: Verify user belongs to the team
+        guard let userId = supabase.auth.currentUser?.id else {
+            throw OrderError.notAuthenticated
+        }
+        
+        let profile: Profile = try await supabase
+            .from("profiles")
+            .select()
+            .eq("id", value: userId)
+            .single()
+            .execute()
+            .value
+        
+        guard let userTeamId = profile.teamId else {
+            throw OrderError.noTeam
+        }
+        
+        guard SecurityUtils.verifyTeamMembership(userTeamId: userTeamId, requestedTeamId: order.teamId) else {
+            throw OrderError.unauthorized
+        }
+        
         do {
+            // Security: Ensure order belongs to user's team
+            var secureOrder = order
+            secureOrder.teamId = userTeamId
+            
             try await supabase
                 .from("orders")
-                .insert(order)
-                .execute() as! [Order]
+                .insert(secureOrder)
+                .execute()
             await loadOrders()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "Failed to create order. Please try again."
+            TelemetryService.shared.logError(error, context: ["action": "create_order"])
             throw error
         }
     }
@@ -93,15 +145,42 @@ class OrderService: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         
+        // Security: Verify user belongs to the team and order belongs to their team
+        guard let userId = supabase.auth.currentUser?.id else {
+            throw OrderError.notAuthenticated
+        }
+        
+        let profile: Profile = try await supabase
+            .from("profiles")
+            .select()
+            .eq("id", value: userId)
+            .single()
+            .execute()
+            .value
+        
+        guard let userTeamId = profile.teamId else {
+            throw OrderError.noTeam
+        }
+        
+        guard SecurityUtils.verifyTeamMembership(userTeamId: userTeamId, requestedTeamId: order.teamId) else {
+            throw OrderError.unauthorized
+        }
+        
         do {
+            // Security: Ensure order belongs to user's team
+            var secureOrder = order
+            secureOrder.teamId = userTeamId
+            
             try await supabase
                 .from("orders")
-                .update(order)
+                .update(secureOrder)
                 .eq("id", value: order.id)
-                .execute() as! [Order]
+                .eq("team_id", value: userTeamId) // Additional security: verify team_id matches
+                .execute()
             await loadOrders()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "Failed to update order. Please try again."
+            TelemetryService.shared.logError(error, context: ["action": "update_order"])
             throw error
         }
     }
@@ -111,15 +190,39 @@ class OrderService: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         
+        // Security: Verify user belongs to the team and order belongs to their team
+        guard let userId = supabase.auth.currentUser?.id else {
+            throw OrderError.notAuthenticated
+        }
+        
+        let profile: Profile = try await supabase
+            .from("profiles")
+            .select()
+            .eq("id", value: userId)
+            .single()
+            .execute()
+            .value
+        
+        guard let userTeamId = profile.teamId else {
+            throw OrderError.noTeam
+        }
+        
+        guard SecurityUtils.verifyTeamMembership(userTeamId: userTeamId, requestedTeamId: order.teamId) else {
+            throw OrderError.unauthorized
+        }
+        
         do {
+            // Security: Additional check - verify team_id matches before deletion
             try await supabase
                 .from("orders")
                 .delete()
                 .eq("id", value: order.id)
-                .execute() as! [Order]
+                .eq("team_id", value: userTeamId) // Security: ensure user can only delete their team's orders
+                .execute()
             await loadOrders()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "Failed to delete order. Please try again."
+            TelemetryService.shared.logError(error, context: ["action": "delete_order"])
             throw error
         }
     }
@@ -139,5 +242,23 @@ class OrderService: ObservableObject {
         return ordersInDateRange(from: from, to: to)
             .filter { $0.status != .cancelled }
             .reduce(0) { $0 + $1.totalAmount }
+    }
+}
+
+// MARK: - Order Errors
+enum OrderError: LocalizedError {
+    case notAuthenticated
+    case noTeam
+    case unauthorized
+    
+    var errorDescription: String? {
+        switch self {
+        case .notAuthenticated:
+            return "You must be signed in to perform this action."
+        case .noTeam:
+            return "You must join or create a team first."
+        case .unauthorized:
+            return "You don't have permission to perform this action."
+        }
     }
 }

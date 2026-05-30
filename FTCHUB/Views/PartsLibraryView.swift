@@ -10,6 +10,7 @@ import SwiftUI
 struct PartsLibraryView: View {
     @StateObject private var partsService = PartsLibraryService.shared
     @EnvironmentObject var inventoryService: InventoryService
+    @EnvironmentObject var teamService: TeamService
     @Environment(\.dismiss) var dismiss
     
     @State private var searchText = ""
@@ -83,40 +84,23 @@ struct PartsLibraryView: View {
                 
                 // Parts List
                 if partsService.isLoading {
-                    ProgressView("Loading parts library...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    EnhancedLoadingView(message: "Loading parts library...")
                 } else if let error = partsService.errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 48))
-                            .foregroundColor(.orange)
-                        Text(error)
-                            .multilineTextAlignment(.center)
-                        Button("Retry") {
-                            partsService.loadParts()
+                    ErrorView(
+                        error: ErrorHandler.userFriendlyError(from: NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: error]), context: "Loading parts library"),
+                        onRetry: {
+                            Task { await partsService.refreshCatalog() }
                         }
-                        .buttonStyle(.bordered)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    )
                 } else if filteredParts.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "tray")
-                            .font(.system(size: 48))
-                            .foregroundColor(.gray)
-                        Text("No parts found")
-                            .font(.headline)
-                        if !searchText.isEmpty || hasActiveFilters {
-                            Button("Clear Filters") {
+                    EnhancedEmptyStateView.noResults(
+                        searchTerm: searchText.isEmpty ? nil : searchText,
+                        clearAction: (!searchText.isEmpty || hasActiveFilters) ? {
                                 searchText = ""
                                 selectedCategory = nil
                                 selectedManufacturer = nil
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } : nil
+                    )
                 } else {
                     List {
                         ForEach(groupedParts.keys.sorted(), id: \.self) { category in
@@ -175,6 +159,7 @@ struct PartsLibraryView: View {
             .sheet(isPresented: $showingAddSheet) {
                 if let part = selectedPart {
                     AddPartFromLibrarySheet(part: part, inventoryService: inventoryService)
+                        .environmentObject(teamService)
                 }
             }
         }
@@ -322,11 +307,13 @@ struct FiltersSheet: View {
 struct AddPartFromLibrarySheet: View {
     let part: PartTemplate
     @ObservedObject var inventoryService: InventoryService
+    @EnvironmentObject var teamService: TeamService
     @Environment(\.dismiss) var dismiss
     
     @State private var quantity: String = "0"
     @State private var location: String = ""
     @State private var isAdding = false
+    @State private var errorMessage: String?
     
     var body: some View {
         NavigationView {
@@ -366,6 +353,18 @@ struct AddPartFromLibrarySheet: View {
                     
                     TextField("Location (Optional)", text: $location)
                 }
+                
+                if let errorMessage {
+                    Section {
+                        Label {
+                            Text(errorMessage)
+                                .foregroundColor(.red)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
             }
             .navigationTitle("Add Part")
             .navigationBarTitleDisplayMode(.inline)
@@ -388,9 +387,14 @@ struct AddPartFromLibrarySheet: View {
     
     private func addToInventory() {
         isAdding = true
+        errorMessage = nil
         
-        // TODO: Get actual team ID from auth service or team service
-        let teamId = UUID() // Placeholder
+        // Get team ID from authenticated user's profile
+        guard let teamId = teamService.currentTeam?.id else {
+            errorMessage = "You must be part of a team to add parts to inventory."
+            isAdding = false
+            return
+        }
         
         let initialQuantity = Int(quantity) ?? 0
         let locationText = location.isEmpty ? nil : location
@@ -411,6 +415,7 @@ struct AddPartFromLibrarySheet: View {
                 }
             } catch {
                 await MainActor.run {
+                    errorMessage = error.localizedDescription
                     isAdding = false
                 }
             }

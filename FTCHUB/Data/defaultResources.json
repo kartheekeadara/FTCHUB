@@ -1,0 +1,104 @@
+[
+  {
+    "id": "2c690c8f-b044-4bd5-beb2-f31247d52409",
+    "title": "FTC Rules & Game Manual",
+    "description": "Complete collection of all FTC game rules, robot rules, game manual parts, rule updates, and official documentation. Essential reading for all teams.",
+    "url": "https://www.firstinspires.org/robotics/ftc/game-and-season",
+    "category": "rules",
+    "icon": "book.closed.fill",
+    "featured": true,
+    "isOfficial": true,
+    "lastUpdated": "2025-01-01T00:00:00Z",
+    "difficulty": "beginner",
+    "estimatedTimeMinutes": 60,
+    "subPages": [
+      {
+        "title": "Game & Season Overview",
+        "url": "https://www.firstinspires.org/programs/ftc/game-and-season",
+        "description": "Official game and season information, game manual downloads (Part 1 & 2), rule updates, inspection requirements, part legality, safety rules, and all season resources"
+      },
+      {
+        "title": "Rule Updates & Q&A Forum",
+        "url": "https://ftcforum.firstinspires.org/",
+        "description": "Official rule updates, Q&A forum, rule clarifications, and interpretations from FIRST"
+      },
+      {
+        "title": "Awards & Judging Criteria",
+        "url": "https://www.firstinspires.org/resources/library/first-tech-challenge-awards",
+        "description": "Award categories, judging criteria, Engineering Portfolio requirements, and presentation guidelines"
+      }
+    ]
+  },
+  {
+    "id": "a54c084b-de08-4df1-8934-881fc63986e7",
+    "title": "Robot Design & Mechanisms",
+    "description": "Comprehensive guide to robot design principles, drivetrains, linear motion systems, intakes, arms, and design tradeoffs. Learn from gm0.org and FTC best practices to build competitive robots.",
+    "url": "https://gm0.org/en/latest/docs/common-mechanisms/",
+    "category": "technical",
+    "icon": "gearshape.2.fill",
+    "featured": false,
+    "isOfficial": false,
+    "lastUpdated": "2025-01-01T00:00:00Z",
+    "difficulty": "intermediate",
+    "estimatedTimeMinutes": 45,
+    "subPages": []
+  },
+  {
+    "id": "70363b6c-2e87-43dd-99ef-725b7bfcbe81",
+    "title": "Programming & Software",
+    "description": "Complete guide to FTC programming from getting started to advanced techniques. Learn Blocks and Java programming, control systems, autonomous programming, sensor integration, and SDK usage.",
+    "url": "https://gm0.org/en/latest/docs/software/",
+    "category": "programming",
+    "icon": "laptopcomputer",
+    "featured": true,
+    "isOfficial": false,
+    "lastUpdated": "2025-01-01T00:00:00Z",
+    "difficulty": "beginner",
+    "estimatedTimeMinutes": 90,
+    "subPages": []
+  },
+  {
+    "id": "60cd6290-e52e-4202-a66c-2f2cff2720d4",
+    "title": "Electronics & Control Systems",
+    "description": "Complete guide to FTC electronics including Control Hub, Expansion Hub, motors, servos, sensors, wiring, and driver station setup. Learn proper electrical safety and system configuration.",
+    "url": "https://gm0.org/en/latest/docs/power-and-electronics/",
+    "category": "technical",
+    "icon": "cpu.fill",
+    "featured": false,
+    "isOfficial": false,
+    "lastUpdated": "2025-01-01T00:00:00Z",
+    "difficulty": "intermediate",
+    "estimatedTimeMinutes": 60,
+    "subPages": []
+  },
+  {
+    "id": "708852a0-d105-469e-bb90-f2f93b9f5ada",
+    "title": "Team Management & Strategy",
+    "description": "Comprehensive guide to starting and organizing FTC teams, outreach and community engagement, competition strategy, awards and judging, and effective team communication.",
+    "url": "https://gm0.org/en/latest/docs/being-a-team/",
+    "category": "strategy",
+    "icon": "person.3.fill",
+    "featured": false,
+    "isOfficial": false,
+    "lastUpdated": "2025-01-01T00:00:00Z",
+    "difficulty": "beginner",
+    "estimatedTimeMinutes": 30,
+    "subPages": []
+  },
+  {
+    "id": "c5d6bf7e-33c5-4400-b382-63af71e1d087",
+    "title": "Competition Preparation & Manufacturing",
+    "description": "Complete guide to competition preparation, game manual understanding, custom manufacturing techniques, hardware components, and troubleshooting. Learn how to prepare for competition day and manufacture custom parts.",
+    "url": "https://gm0.org/en/latest/docs/custom-manufacturing/",
+    "category": "parts",
+    "icon": "wrench.and.screwdriver.fill",
+    "featured": false,
+    "isOfficial": false,
+    "lastUpdated": "2025-01-01T00:00:00Z",
+    "difficulty": "intermediate",
+    "estimatedTimeMinutes": 45,
+    "subPages": []
+  }
+]
+
+

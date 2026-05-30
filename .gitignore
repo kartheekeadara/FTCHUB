@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Swift / Xcode
+DerivedData/
+build/
+.build/
+*.xcuserstate
+*.xcuserdata/
+buildServer.json
+
+# Swift Package Manager
+Packages/
+
+# CocoaPods / Carthage (defensive)
+Pods/
+Carthage/
+
+# Node (Supabase CLI dev dependency)
+node_modules/
+
+# Secrets and local config
+FTCHUB/Resources/Secrets.plist
+*.xcconfig.local
+.env
+.env.*
+!**/.env.example
+!Scripts/**/.env.example
+FTCHUB/Config/Secrets.xcconfig
+scripts/local-supabase.env
+supabase/.temp/

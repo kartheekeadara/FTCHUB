@@ -6,19 +6,28 @@
 //
 
 import SwiftUI
+#if canImport(SafariServices)
+import SafariServices
+#endif
 
 struct CompetitionModeView: View {
-    @State private var currentMatch: Int = 1
-    @State private var nextMatchTime: Date = Date().addingTimeInterval(900)
+    @EnvironmentObject var scheduleService: ScheduleService
     @State private var selectedTab: CompetitionTab = .schedule
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
+        if scheduleService.hasTeamContext {
             ScrollView {
                 VStack(spacing: 20) {
                     // Current Match Status
-                    CurrentMatchCard(matchNumber: currentMatch, nextMatchTime: nextMatchTime)
+                    CurrentMatchCard(match: scheduleService.upcomingMatch())
                         .padding(.horizontal)
+                    
+                    // Resources - Featured Section (Always Visible)
+                    FeaturedResourcesCard {
+                        selectedTab = .resources
+                    }
+                    .padding(.horizontal)
                     
                     // Quick Access Grid
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
@@ -50,6 +59,8 @@ struct CompetitionModeView: View {
                         AllianceInfoSection()
                     case .contacts:
                         EmergencyContactsSection()
+                    case .resources:
+                        ResourcesSection()
                     }
                 }
                 .padding(.vertical)
@@ -57,17 +68,23 @@ struct CompetitionModeView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Competition Mode")
             .navigationBarTitleDisplayMode(.large)
+        } else {
+            TeamAccessRequiredView(featureName: "Competition Mode")
+                .navigationTitle("Competition Mode")
+        }
         }
     }
 }
 
 // MARK: - Current Match Card
 struct CurrentMatchCard: View {
-    let matchNumber: Int
-    let nextMatchTime: Date
+    let match: Match?
     
     var timeUntilMatch: String {
-        let interval = nextMatchTime.timeIntervalSinceNow
+        guard let scheduled = match?.scheduledTime else {
+            return "No match scheduled"
+        }
+        let interval = scheduled.timeIntervalSinceNow
         if interval < 0 {
             return "Match in progress"
         }
@@ -76,42 +93,58 @@ struct CurrentMatchCard: View {
     }
     
     var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 8) {
+        VStack(spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     Text("Next Match")
                         .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("#\(matchNumber)")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .fontWeight(.medium)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                    Text(match?.matchNumber ?? "—")
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundColor(DesignSystem.Colors.textPrimary)
                 }
                 
                 Spacer()
                 
-                VStack(alignment: .trailing, spacing: 8) {
+                VStack(alignment: .trailing, spacing: DesignSystem.Spacing.xs) {
                     Text("Time Until")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .fontWeight(.medium)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
                     Text(timeUntilMatch)
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(.blue)
+                        .foregroundColor(DesignSystem.Colors.primary)
                 }
             }
             
             Divider()
+                .background(DesignSystem.Colors.border.opacity(0.3))
             
-            HStack(spacing: 20) {
-                InfoPill(icon: "clock", text: nextMatchTime.formatted(date: .omitted, time: .shortened))
-                InfoPill(icon: "location", text: "Field 1")
-                InfoPill(icon: "person.2", text: "Red Alliance")
+            HStack(spacing: DesignSystem.Spacing.md) {
+                InfoPill(icon: "clock", text: match?.scheduledTime.formatted(date: .omitted, time: .shortened) ?? "—")
+                InfoPill(icon: "location", text: match?.location ?? "TBD")
+                InfoPill(icon: "person.2", text: match?.allianceColor.displayName ?? "Alliance")
             }
         }
-        .padding()
+        .padding(DesignSystem.Spacing.lg)
         .background(
-            LinearGradient(colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(
+                colors: [
+                    DesignSystem.Colors.primary.opacity(0.08),
+                    DesignSystem.Colors.accent.opacity(0.05)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         )
-        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.lg)
+                .stroke(DesignSystem.Colors.primary.opacity(0.15), lineWidth: 1)
+        )
+        .cornerRadius(DesignSystem.CornerRadius.lg)
+        .shadow(color: DesignSystem.Colors.shadow.opacity(0.1), radius: 8, x: 0, y: 4)
     }
 }
 
@@ -121,16 +154,219 @@ struct InfoPill: View {
     let text: String
     
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DesignSystem.Spacing.xs) {
             Image(systemName: icon)
-                .font(.caption)
+                .font(.caption2)
+                .foregroundColor(DesignSystem.Colors.primary)
             Text(text)
                 .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(DesignSystem.Colors.textPrimary)
+        }
+        .padding(.horizontal, DesignSystem.Spacing.sm)
+        .padding(.vertical, DesignSystem.Spacing.xs)
+        .background(DesignSystem.Colors.cardBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                .stroke(DesignSystem.Colors.border.opacity(0.2), lineWidth: 1)
+        )
+        .cornerRadius(DesignSystem.CornerRadius.sm)
+    }
+}
+
+// MARK: - Featured Resources Card
+struct FeaturedResourcesCard: View {
+    @StateObject private var resourcesService = ResourcesService.shared
+    @State private var topResources: [FTCResource] = []
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 0) {
+                // Main Card Content
+                HStack(spacing: 18) {
+                    // Large Icon with Gradient
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.orange.opacity(0.25),
+                                        Color.orange.opacity(0.2)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 80, height: 80)
+                            .shadow(color: Color.orange.opacity(0.2), radius: 8, x: 0, y: 4)
+                        
+                        Image(systemName: "book.fill")
+                            .font(.system(size: 36, weight: .bold))
+                            .foregroundColor(.orange)
+                    }
+                    
+                    // Content
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Text("Educational Resources")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(DesignSystem.Colors.textPrimary)
+                            
+                            // Badge
+                            Text("NEW")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.orange, Color.orange.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .cornerRadius(4)
+                        }
+                        
+                        Text("Comprehensive FTC guides, tutorials, and best practices")
+                            .font(.subheadline)
+                            .foregroundColor(DesignSystem.Colors.textSecondary)
+                            .lineLimit(2)
+                        
+                        // Resource Count
+                        if !topResources.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "square.grid.2x2.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(.orange.opacity(0.8))
+                                Text("\(topResources.count)+ Resources Available")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(.top, 2)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Arrow
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.orange.opacity(0.7))
+                }
+                .padding(24)
+                
+                // Preview of Top Resources (if available)
+                if !topResources.isEmpty {
+                    Divider()
+                        .padding(.horizontal, 24)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(topResources.prefix(3)) { resource in
+                                ResourcePreviewChip(resource: resource)
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 16)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.orange.opacity(0.12),
+                                Color.orange.opacity(0.06)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.orange.opacity(0.4),
+                                        Color.orange.opacity(0.2)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2.5
+                            )
+                    )
+            )
+            .shadow(color: Color.orange.opacity(0.2), radius: 16, x: 0, y: 6)
+            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+        .task {
+            await loadTopResources()
+        }
+    }
+    
+    private func loadTopResources() async {
+        // Load resources directly from service without database operations
+        // This ensures fast loading without database errors
+        do {
+            try await resourcesService.loadResources()
+            topResources = Array(resourcesService.resources.prefix(6))
+        } catch {
+            // If service fails, resources will be empty - that's okay
+            // The card will still show but without resource count
+        }
+    }
+}
+
+// MARK: - Resource Preview Chip
+struct ResourcePreviewChip: View {
+    let resource: FTCResource
+    
+    private var categoryColor: Color {
+        switch resource.category {
+        case .official: return .blue
+        case .rules: return .purple
+        case .community: return .green
+        case .technical: return .orange
+        case .programming: return .indigo
+        case .strategy: return .pink
+        case .safety: return .red
+        case .awards: return .yellow
+        case .video: return .red
+        case .parts: return .gray
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: resource.icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(categoryColor)
+                .frame(width: 20)
+            
+            Text(resource.title)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(DesignSystem.Colors.textPrimary)
+                .lineLimit(1)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(categoryColor.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(categoryColor.opacity(0.3), lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -143,19 +379,30 @@ struct QuickActionButton: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 12) {
+            VStack(spacing: DesignSystem.Spacing.sm) {
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.15))
+                        .frame(width: 56, height: 56)
                 Image(systemName: icon)
-                    .font(.system(size: 32))
+                        .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(color)
+                }
                 
                 Text(title)
                     .font(.subheadline)
-                    .fontWeight(.medium)
+                    .fontWeight(.semibold)
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 20)
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
+            .padding(.vertical, DesignSystem.Spacing.lg)
+            .background(DesignSystem.Colors.cardBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                    .stroke(DesignSystem.Colors.border.opacity(0.2), lineWidth: 1)
+            )
+            .cornerRadius(DesignSystem.CornerRadius.md)
+            .shadow(color: DesignSystem.Colors.shadow.opacity(0.05), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(.plain)
     }
@@ -163,35 +410,48 @@ struct QuickActionButton: View {
 
 // MARK: - Match Schedule Section
 struct MatchScheduleSection: View {
-    let matches = [
-        CompetitionMatch(number: 1, time: Date().addingTimeInterval(900), field: "Field 1", alliance: "Red", opponents: ["1234", "5678"]),
-        CompetitionMatch(number: 2, time: Date().addingTimeInterval(2700), field: "Field 2", alliance: "Blue", opponents: ["9012", "3456"]),
-        CompetitionMatch(number: 3, time: Date().addingTimeInterval(4500), field: "Field 1", alliance: "Red", opponents: ["7890", "2345"])
-    ]
+    @EnvironmentObject var scheduleService: ScheduleService
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack {
+                Image(systemName: "calendar")
+                    .foregroundColor(DesignSystem.Colors.primary)
             Text("Today's Matches")
                 .font(.headline)
-                .padding(.horizontal)
+                    .fontWeight(.semibold)
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
+                Spacer()
+            }
+            .padding(.horizontal, DesignSystem.Spacing.md)
             
-            ForEach(matches) { match in
-                MatchRow(match: match)
-                    .padding(.horizontal)
+            let matches = Array(scheduleService.matches(on: Date()).prefix(3))
+            
+            if !matches.isEmpty {
+                VStack(spacing: DesignSystem.Spacing.sm) {
+                ForEach(matches, id: \.id) { match in
+                    MatchSummaryRow(match: match)
+                    }
+                }
+                .padding(.horizontal, DesignSystem.Spacing.md)
             }
         }
     }
 }
 
-struct MatchRow: View {
-    let match: CompetitionMatch
+struct MatchSummaryRow: View {
+    let match: Match
+    
+    private var allianceAccent: Color {
+        match.allianceColor == .red ? .red : .blue
+    }
     
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Match #\(match.number)")
+                Text("Match #\(match.matchNumber)")
                     .font(.headline)
-                Text(match.time.formatted(date: .omitted, time: .shortened))
+                Text(match.scheduledTime.formatted(date: .omitted, time: .shortened))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -199,14 +459,14 @@ struct MatchRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text(match.field)
+                Text(match.location ?? "TBD")
                     .font(.caption)
-                Text(match.alliance)
+                Text(match.allianceColor.displayName)
                     .font(.caption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background(match.alliance == "Red" ? Color.red.opacity(0.2) : Color.blue.opacity(0.2))
-                    .foregroundColor(match.alliance == "Red" ? .red : .blue)
+                    .background(allianceAccent.opacity(0.15))
+                    .foregroundColor(allianceAccent)
                     .cornerRadius(8)
             }
         }
@@ -400,18 +660,168 @@ struct CompetitionContactRow: View {
     }
 }
 
-// MARK: - Supporting Types
-enum CompetitionTab {
-    case schedule, preMatch, alliance, contacts
+// MARK: - Resources Section
+struct ResourcesSection: View {
+    @StateObject private var resourcesService = ResourcesService.shared
+    @State private var resources: [FTCResource] = []
+    @State private var isLoading = false
+    @State private var selectedResource: FTCResource?
+    @State private var showingBrowser = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Enhanced Header with Navigation Link
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 16) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.orange.opacity(0.25),
+                                        Color.orange.opacity(0.2)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 56, height: 56)
+                            .shadow(color: Color.orange.opacity(0.2), radius: 6, x: 0, y: 3)
+                        
+                        Image(systemName: "book.fill")
+                            .font(.system(size: 26, weight: .bold))
+                            .foregroundColor(.orange)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("FTC Educational Resources")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(DesignSystem.Colors.textPrimary)
+                        
+                        Text("Comprehensive guides, tutorials, and best practices")
+                            .font(.subheadline)
+                            .foregroundColor(DesignSystem.Colors.textSecondary)
+                    }
+                    
+                    Spacer()
+                    
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+                }
+                
+                // Quick Stats
+                if !resources.isEmpty {
+                    HStack(spacing: 20) {
+                        ResourceStatBadge(icon: "book.fill", value: "\(resources.count)", label: "Resources")
+                        ResourceStatBadge(icon: "square.grid.2x2.fill", value: "\(resources.compactMap { $0.subPages?.count }.reduce(0, +))", label: "Topics")
+                        ResourceStatBadge(icon: "rectangle.stack.fill", value: "6", label: "Categories")
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 20)
+            
+            // Content
+            if resources.isEmpty && !isLoading {
+                VStack(spacing: 16) {
+                    Image(systemName: "book.closed")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+                    Text("Loading FTC Resources...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Button("Load Resources") {
+                        Task {
+                            await loadResources()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, minHeight: 200)
+                .padding(.vertical, 40)
+            } else if resources.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "book.closed")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+                    Text("No resources available")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 200)
+                .padding(.vertical, 40)
+            } else {
+                LazyVStack(spacing: 16) {
+                    ForEach(resources.prefix(6)) { resource in
+                        NavigationLink {
+                            EducationalResourceDetailView(resource: resource)
+                        } label: {
+                            EnhancedResourceCard(
+                                resource: resource,
+                                onTap: {},
+                                onIconTap: {
+                                    if let url = URL(string: resource.url) {
+                                        UIApplication.shared.open(url)
+                                    }
+                                }
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal)
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task {
+            if resources.isEmpty {
+                await loadResources()
+            }
+        }
+        .sheet(isPresented: $showingBrowser) {
+            if let resource = selectedResource {
+                ResourceBrowserView(resource: resource)
+            }
+        }
+    }
+    
+    private func loadResources() async {
+        // If resources are already loaded in ResourcesService, use them immediately
+        if !resourcesService.resources.isEmpty {
+            await MainActor.run {
+                resources = resourcesService.resources
+            }
+            return
+        }
+        
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            try await resourcesService.loadResources()
+            await MainActor.run {
+                resources = resourcesService.resources
+            }
+        } catch {
+            DebugLog.log(" Failed to load resources: \(error.localizedDescription)")
+            // Even if database loading fails, use whatever resources are available
+            await MainActor.run {
+                resources = resourcesService.resources
+            }
+        }
+    }
 }
 
-struct CompetitionMatch: Identifiable {
-    let id = UUID()
-    let number: Int
-    let time: Date
-    let field: String
-    let alliance: String
-    let opponents: [String]
+// ResourceCard, FTCResource, ResourceCategory, ResourceBrowserView, and SafariView
+// are now defined in Models/FTCResource.swift
+
+// MARK: - Supporting Types
+enum CompetitionTab {
+    case schedule, preMatch, alliance, contacts, resources
 }
 
 struct ChecklistItem: Identifiable {
@@ -427,7 +837,42 @@ struct CompetitionContact: Identifiable {
     let role: String
 }
 
+// MARK: - Resource Stat Badge
+struct ResourceStatBadge: View {
+    let icon: String
+    let value: String
+    let label: String
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundColor(.orange.opacity(0.8))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
+                Text(label)
+                    .font(.caption2)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.orange.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+}
+
 #Preview {
     CompetitionModeView()
+        .environmentObject(ScheduleService())
 }
 

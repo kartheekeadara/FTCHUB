@@ -10,11 +10,19 @@ import Combine
 import UserNotifications
 import UIKit
 
+enum NotificationReminderType: String {
+    case events
+    case matches
+    case tasks
+    case inventory
+}
+
 @MainActor
 class NotificationService: NSObject, ObservableObject {
     static let shared = NotificationService()
     
     @Published var isAuthorized = false
+    @Published private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @Published var pendingNotifications: [UNNotificationRequest] = []
     @Published var badgeCount: Int = 0
     
@@ -37,7 +45,7 @@ class NotificationService: NSObject, ObservableObject {
         setupNotificationCategories()
         // Only check authorization if not in preview mode
         if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
-            checkAuthorizationStatus()
+            Task { await refreshAuthorizationStatus() }
         } else {
             // Set mock values for previews
             self.isAuthorized = false
@@ -47,18 +55,22 @@ class NotificationService: NSObject, ObservableObject {
     
     // MARK: - Preferences
     private func loadPreferences() {
-        enableEventReminders = defaults.bool(forKey: "enableEventReminders")
-        enableMatchReminders = defaults.bool(forKey: "enableMatchReminders")
-        enableTaskReminders = defaults.bool(forKey: "enableTaskReminders")
-        enableInventoryAlerts = defaults.bool(forKey: "enableInventoryAlerts")
+        enableEventReminders = boolPreference(forKey: "enableEventReminders", defaultValue: true)
+        enableMatchReminders = boolPreference(forKey: "enableMatchReminders", defaultValue: true)
+        enableTaskReminders = boolPreference(forKey: "enableTaskReminders", defaultValue: true)
+        enableInventoryAlerts = boolPreference(forKey: "enableInventoryAlerts", defaultValue: true)
         eventReminderMinutes = defaults.integer(forKey: "eventReminderMinutes")
         matchReminderMinutes = defaults.integer(forKey: "matchReminderMinutes")
         taskReminderHours = defaults.integer(forKey: "taskReminderHours")
         
-        // Set defaults if not previously set
         if eventReminderMinutes == 0 { eventReminderMinutes = 15 }
         if matchReminderMinutes == 0 { matchReminderMinutes = 10 }
         if taskReminderHours == 0 { taskReminderHours = 24 }
+    }
+    
+    private func boolPreference(forKey key: String, defaultValue: Bool) -> Bool {
+        guard defaults.object(forKey: key) != nil else { return defaultValue }
+        return defaults.bool(forKey: key)
     }
     
     func savePreferences() {
@@ -72,21 +84,107 @@ class NotificationService: NSObject, ObservableObject {
     }
     
     // MARK: - Authorization
+    var canConfigureReminders: Bool { isAuthorized }
+    
+    func refreshAuthorizationStatus() async {
+        let settings = await center.notificationSettings()
+        authorizationStatus = settings.authorizationStatus
+        isAuthorized = settings.authorizationStatus == .authorized
+    }
+    
     func requestAuthorization() async {
         do {
-            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
-            isAuthorized = granted
+            _ = try await center.requestAuthorization(options: [.alert, .badge, .sound])
         } catch {
-            print("Failed to request notification authorization: \(error)")
+            DebugLog.log("Failed to request notification authorization: \(error)")
+        }
+        await refreshAuthorizationStatus()
+    }
+    
+    func openSystemNotificationSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+    
+    // MARK: - Cancel / Reschedule Helpers
+    
+    func cancelEventReminders(eventId: UUID) {
+        cancelPending(withPrefix: "event_\(eventId)")
+    }
+    
+    func cancelMatchReminders(matchId: UUID) {
+        cancelPending(withPrefix: "match_\(matchId)")
+    }
+    
+    func cancelTaskReminders(taskId: UUID) {
+        cancelPending(withPrefix: "task_\(taskId)")
+    }
+    
+    func cancelInventoryAlerts(itemId: UUID) {
+        center.removePendingNotificationRequests(withIdentifiers: [
+            "low_stock_\(itemId)",
+            "out_of_stock_\(itemId)"
+        ])
+    }
+    
+    func cancelAllForType(_ type: NotificationReminderType) async {
+        let requests = await center.pendingNotificationRequests()
+        let identifiers = requests.map(\.identifier).filter { identifier in
+            switch type {
+            case .events: return identifier.hasPrefix("event_")
+            case .matches: return identifier.hasPrefix("match_")
+            case .tasks: return identifier.hasPrefix("task_")
+            case .inventory:
+                return identifier.hasPrefix("low_stock_") || identifier.hasPrefix("out_of_stock_")
+            }
+        }
+        guard !identifiers.isEmpty else { return }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        await getPendingNotifications()
+    }
+    
+    func rescheduleEventReminder(for event: Event, minutesBefore: Int? = nil) {
+        cancelEventReminders(eventId: event.id)
+        scheduleEventReminder(for: event, minutesBefore: minutesBefore)
+    }
+    
+    func rescheduleMatchReminder(for match: Match, minutesBefore: Int? = nil) {
+        cancelMatchReminders(matchId: match.id)
+        scheduleMatchReminder(for: match, minutesBefore: minutesBefore)
+    }
+    
+    func rescheduleTaskReminder(for task: TeamTask, hoursBefore: Int? = nil) {
+        cancelTaskReminders(taskId: task.id)
+        scheduleTaskReminder(for: task, hoursBefore: hoursBefore)
+    }
+    
+    func handleInventoryStockChange(from previous: InventoryItem, to updated: InventoryItem) {
+        let previousStatus = previous.stockStatus
+        let newStatus = updated.stockStatus
+        
+        if newStatus == .outOfStock, previousStatus != .outOfStock {
+            scheduleOutOfStockAlert(for: updated)
+        } else if newStatus == .lowStock, previousStatus == .inStock {
+            scheduleLowStockAlert(for: updated)
+        }
+        
+        if newStatus == .inStock {
+            cancelInventoryAlerts(itemId: updated.id)
         }
     }
     
-    private func checkAuthorizationStatus() {
-        center.getNotificationSettings { settings in
-            Task { @MainActor in
-                self.isAuthorized = settings.authorizationStatus == .authorized
-            }
+    private func cancelPending(withPrefix prefix: String) {
+        Task {
+            let requests = await center.pendingNotificationRequests()
+            let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
+            guard !ids.isEmpty else { return }
+            center.removePendingNotificationRequests(withIdentifiers: ids)
         }
+    }
+    
+    private func hasPendingNotification(identifier: String) async -> Bool {
+        let requests = await center.pendingNotificationRequests()
+        return requests.contains { $0.identifier == identifier }
     }
     
     // MARK: - Event Notifications
@@ -94,6 +192,8 @@ class NotificationService: NSObject, ObservableObject {
         guard isAuthorized, enableEventReminders else { return }
         
         let minutes = minutesBefore ?? eventReminderMinutes
+        let reminderDate = event.startDate.addingTimeInterval(-TimeInterval(minutes * 60))
+        guard reminderDate > Date() else { return }
         
         let content = UNMutableNotificationContent()
         content.title = "Upcoming Event"
@@ -108,7 +208,8 @@ class NotificationService: NSObject, ObservableObject {
             "eventType": event.eventType.rawValue
         ]
         
-        let reminderDate = event.startDate.addingTimeInterval(-TimeInterval(minutes * 60))
+        cancelEventReminders(eventId: event.id)
+        
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: max(1, reminderDate.timeIntervalSinceNow),
             repeats: false
@@ -122,7 +223,7 @@ class NotificationService: NSObject, ObservableObject {
         
         center.add(request) { error in
             if let error = error {
-                print("Failed to schedule event reminder: \(error)")
+                DebugLog.log("Failed to schedule event reminder: \(error)")
             }
         }
     }
@@ -131,6 +232,10 @@ class NotificationService: NSObject, ObservableObject {
         guard isAuthorized, enableMatchReminders else { return }
         
         let minutes = minutesBefore ?? matchReminderMinutes
+        let reminderDate = match.scheduledTime.addingTimeInterval(-TimeInterval(minutes * 60))
+        guard reminderDate > Date() else { return }
+        
+        cancelMatchReminders(matchId: match.id)
         
         let content = UNMutableNotificationContent()
         content.title = "Match Starting Soon"
@@ -144,7 +249,6 @@ class NotificationService: NSObject, ObservableObject {
             "matchNumber": match.matchNumber
         ]
         
-        let reminderDate = match.scheduledTime.addingTimeInterval(-TimeInterval(minutes * 60))
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: max(1, reminderDate.timeIntervalSinceNow),
             repeats: false
@@ -158,7 +262,7 @@ class NotificationService: NSObject, ObservableObject {
         
         center.add(request) { error in
             if let error = error {
-                print("Failed to schedule match reminder: \(error)")
+                DebugLog.log("Failed to schedule match reminder: \(error)")
             }
         }
     }
@@ -167,26 +271,58 @@ class NotificationService: NSObject, ObservableObject {
     func scheduleLowStockAlert(for item: InventoryItem) {
         guard isAuthorized, enableInventoryAlerts else { return }
         
+        let identifier = "low_stock_\(item.id)"
+        Task {
+            if await hasPendingNotification(identifier: identifier) { return }
+            await addImmediateNotification(
+                identifier: identifier,
+                title: "Low Stock Alert",
+                body: "\(item.name) is running low (\(item.quantityOnHand) remaining)",
+                categoryIdentifier: "INVENTORY_CATEGORY",
+                userInfo: ["itemId": item.id.uuidString, "itemName": item.name]
+            )
+        }
+    }
+    
+    private func addImmediateNotification(
+        identifier: String,
+        title: String,
+        body: String,
+        categoryIdentifier: String? = nil,
+        userInfo: [AnyHashable: Any] = [:]
+    ) async {
         let content = UNMutableNotificationContent()
-        content.title = "Low Stock Alert"
-        content.body = "\(item.name) is running low (\(item.quantityOnHand) remaining)"
+        content.title = title
+        content.body = body
         content.sound = .default
-        content.badge = 1
+        if let categoryIdentifier {
+            content.categoryIdentifier = categoryIdentifier
+        }
+        content.userInfo = userInfo
         
-        content.userInfo = [
-            "itemId": item.id.uuidString,
-            "itemName": item.name
-        ]
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+        try? await center.add(request)
+    }
+    
+    func scheduleLowStockAlertPreview() {
+        guard isAuthorized else { return }
         
+        let content = UNMutableNotificationContent()
+        content.title = "Low Stock Alerts Enabled"
+        content.body = "We'll let you know when inventory items fall below their thresholds."
+        content.sound = .default
+        content.categoryIdentifier = "INVENTORY_CATEGORY"
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "low_stock_\(item.id)",
+            identifier: "low_stock_preview",
             content: content,
-            trigger: nil // Immediate notification
+            trigger: trigger
         )
         
         center.add(request) { error in
-            if let error = error {
-                print("Failed to schedule low stock alert: \(error)")
+            if let error {
+                DebugLog.log("Failed to schedule low stock preview: \(error)")
             }
         }
     }
@@ -194,27 +330,16 @@ class NotificationService: NSObject, ObservableObject {
     func scheduleOutOfStockAlert(for item: InventoryItem) {
         guard isAuthorized, enableInventoryAlerts else { return }
         
-        let content = UNMutableNotificationContent()
-        content.title = "Out of Stock Alert"
-        content.body = "\(item.name) is out of stock"
-        content.sound = .default
-        content.badge = 1
-        
-        content.userInfo = [
-            "itemId": item.id.uuidString,
-            "itemName": item.name
-        ]
-        
-        let request = UNNotificationRequest(
-            identifier: "out_of_stock_\(item.id)",
-            content: content,
-            trigger: nil // Immediate notification
-        )
-        
-        center.add(request) { error in
-            if let error = error {
-                print("Failed to schedule out of stock alert: \(error)")
-            }
+        let identifier = "out_of_stock_\(item.id)"
+        Task {
+            if await hasPendingNotification(identifier: identifier) { return }
+            await addImmediateNotification(
+                identifier: identifier,
+                title: "Out of Stock Alert",
+                body: "\(item.name) is out of stock",
+                categoryIdentifier: "INVENTORY_CATEGORY",
+                userInfo: ["itemId": item.id.uuidString, "itemName": item.name]
+            )
         }
     }
     
@@ -223,6 +348,10 @@ class NotificationService: NSObject, ObservableObject {
         guard isAuthorized, enableTaskReminders, let dueDate = task.dueDate else { return }
         
         let hours = hoursBefore ?? taskReminderHours
+        let reminderDate = dueDate.addingTimeInterval(-TimeInterval(hours * 3600))
+        guard reminderDate > Date() else { return }
+        
+        cancelTaskReminders(taskId: task.id)
         
         let content = UNMutableNotificationContent()
         content.title = "Task Due Soon"
@@ -236,7 +365,6 @@ class NotificationService: NSObject, ObservableObject {
             "taskTitle": task.title
         ]
         
-        let reminderDate = dueDate.addingTimeInterval(-TimeInterval(hours * 3600))
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: max(1, reminderDate.timeIntervalSinceNow),
             repeats: false
@@ -250,7 +378,7 @@ class NotificationService: NSObject, ObservableObject {
         
         center.add(request) { error in
             if let error = error {
-                print("Failed to schedule task reminder: \(error)")
+                DebugLog.log("Failed to schedule task reminder: \(error)")
             }
         }
     }
@@ -284,7 +412,7 @@ class NotificationService: NSObject, ObservableObject {
         
         center.add(request) { error in
             if let error = error {
-                print("Failed to schedule grant reminder: \(error)")
+                DebugLog.log("Failed to schedule grant reminder: \(error)")
             }
         }
     }
@@ -292,8 +420,11 @@ class NotificationService: NSObject, ObservableObject {
     // MARK: - Badge Management
     func updateBadgeCount(_ count: Int) {
         badgeCount = count
-        Task { @MainActor in
-            UIApplication.shared.applicationIconBadgeNumber = count
+        // Use modern UNUserNotificationCenter API for badge count
+        UNUserNotificationCenter.current().setBadgeCount(count) { error in
+            if let error = error {
+                DebugLog.log("Failed to update badge count: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -370,41 +501,54 @@ class NotificationService: NSObject, ObservableObject {
 extension NotificationService: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         // Show notification even when app is in foreground
-        completionHandler([.alert, .badge, .sound])
+        if #available(iOS 14.0, *) {
+            completionHandler([.banner, .badge, .sound])
+        } else {
+            completionHandler([.alert, .badge, .sound])
+        }
     }
     
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
         
         switch response.actionIdentifier {
+        case UNNotificationDefaultActionIdentifier:
+            routeNotificationTap(userInfo: userInfo)
+            
         case "VIEW_EVENT":
             if let eventId = userInfo["eventId"] as? String {
-                // Navigate to event detail
-                print("Navigate to event: \(eventId)")
+                NotificationCenter.default.post(
+                    name: .ftcOpenEvent,
+                    object: nil,
+                    userInfo: ["eventId": eventId]
+                )
             }
             
-        case "VIEW_ITEM":
+        case "VIEW_MATCH":
+            if let matchId = userInfo["matchId"] as? String {
+                NotificationCenter.default.post(
+                    name: .ftcOpenMatch,
+                    object: nil,
+                    userInfo: ["matchId": matchId]
+                )
+            }
+            
+        case "VIEW_ITEM", "ORDER_ITEM":
             if let itemId = userInfo["itemId"] as? String {
-                // Navigate to inventory item
-                print("Navigate to item: \(itemId)")
+                NotificationCenter.default.post(
+                    name: .ftcOpenInventoryItem,
+                    object: nil,
+                    userInfo: ["itemId": itemId]
+                )
             }
             
-        case "VIEW_TASK":
+        case "VIEW_TASK", "COMPLETE_TASK":
             if let taskId = userInfo["taskId"] as? String {
-                // Navigate to task detail
-                print("Navigate to task: \(taskId)")
-            }
-            
-        case "ORDER_ITEM":
-            if let itemId = userInfo["itemId"] as? String {
-                // Navigate to order form
-                print("Order item: \(itemId)")
-            }
-            
-        case "COMPLETE_TASK":
-            if let taskId = userInfo["taskId"] as? String {
-                // Mark task as complete
-                print("Complete task: \(taskId)")
+                NotificationCenter.default.post(
+                    name: .ftcOpenTask,
+                    object: nil,
+                    userInfo: ["taskId": taskId]
+                )
             }
             
         default:
@@ -412,6 +556,18 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         }
         
         completionHandler()
+    }
+    
+    private func routeNotificationTap(userInfo: [AnyHashable: Any]) {
+        if let eventId = userInfo["eventId"] as? String {
+            NotificationCenter.default.post(name: .ftcOpenEvent, object: nil, userInfo: ["eventId": eventId])
+        } else if let matchId = userInfo["matchId"] as? String {
+            NotificationCenter.default.post(name: .ftcOpenMatch, object: nil, userInfo: ["matchId": matchId])
+        } else if let taskId = userInfo["taskId"] as? String {
+            NotificationCenter.default.post(name: .ftcOpenTask, object: nil, userInfo: ["taskId": taskId])
+        } else if let itemId = userInfo["itemId"] as? String {
+            NotificationCenter.default.post(name: .ftcOpenInventoryItem, object: nil, userInfo: ["itemId": itemId])
+        }
     }
 }
 

@@ -29,9 +29,11 @@ class SyncService: ObservableObject {
     
     // MARK: - Sync Management
     func startPeriodicSync() {
-        // Sync every 30 seconds when online
+        // Sync every 30 seconds when online - use background priority to avoid blocking UI
         syncTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
+                // Run sync with lower priority to avoid blocking UI
+                await Task.yield()
                 await self?.syncIfNeeded()
             }
         }
@@ -52,26 +54,22 @@ class SyncService: ObservableObject {
         syncError = nil
         syncProgress = 0.0
         
-        do {
-            // 1. Sync pending operations to server
-            await syncPendingOperations()
-            syncProgress = 0.3
-            
-            // 2. Pull latest data from server
-            await pullLatestData()
-            syncProgress = 0.7
-            
-            // 3. Resolve conflicts
-            await resolveConflicts()
-            syncProgress = 1.0
-            
-            lastSyncDate = Date()
-            pendingOperations = localStorage.getSyncQueue().count
-            
-        } catch {
-            syncError = error.localizedDescription
-            print("Sync failed: \(error)")
-        }
+        // Note: syncPendingOperations, pullLatestData, and resolveConflicts are async but don't throw
+        // They handle errors internally, so no catch block needed
+        // 1. Sync pending operations to server
+        await syncPendingOperations()
+        syncProgress = 0.3
+        
+        // 2. Pull latest data from server
+        await pullLatestData()
+        syncProgress = 0.7
+        
+        // 3. Resolve conflicts
+        await resolveConflicts()
+        syncProgress = 1.0
+        
+        lastSyncDate = Date()
+        pendingOperations = localStorage.getSyncQueue().count
         
         isSyncing = false
     }
@@ -86,7 +84,7 @@ class SyncService: ObservableObject {
                 try await syncQueueItem(item)
                 localStorage.removeFromSyncQueue(id: item.id)
             } catch {
-                print("Failed to sync item \(item.id): \(error)")
+                DebugLog.log("Failed to sync item \(item.id): \(error)")
                 localStorage.incrementRetryCount(id: item.id)
                 
                 // Remove items that have failed too many times
@@ -231,7 +229,7 @@ class SyncService: ObservableObject {
             }
             
         } catch {
-            print("Failed to pull latest data: \(error)")
+            DebugLog.log("Failed to pull latest data: \(error)")
             // Don't throw error to prevent sync failure
         }
     }
@@ -240,7 +238,7 @@ class SyncService: ObservableObject {
     private func resolveConflicts() async {
         // Simple last-writer-wins conflict resolution
         // In a production app, you might want more sophisticated conflict resolution
-        print("Resolving conflicts...")
+        DebugLog.log("Resolving conflicts...")
         // This is where you'd implement conflict resolution logic
     }
     

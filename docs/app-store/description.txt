@@ -1,0 +1,10 @@
+FTC HUB streamlines everything your FIRST Tech Challenge team needs during competition season. Manage rosters, plan events, track inventory, scout matches, and mirror the official FTC scoring system from a single app.
+
+• Supabase-powered authentication with team-based access control  
+• Drive team timer with haptics, legal consent gating, and data privacy safeguards  
+• Match schedule import with preview, validation warnings, and CSV/JSON support  
+• Advanced scouting forms tuned for the DECODE game, complete with analytics dashboards  
+• Rules reference search and competition tools
+
+FTC HUB is built by mentors for mentors. Keep your team synchronized, compliant, and ready to compete.
+

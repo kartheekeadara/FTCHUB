@@ -52,19 +52,15 @@ class AnalyticsService: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         
-        do {
-            async let teamPerf = loadTeamPerformanceAnalytics()
-            async let scouting = loadScoutingAnalytics()
-            async let inventory = loadInventoryAnalytics()
-            async let events = loadEventAnalytics()
-            
-            teamPerformance = await teamPerf
-            scoutingAnalytics = await scouting
-            inventoryAnalytics = await inventory
-            eventAnalytics = await events
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        async let teamPerf = loadTeamPerformanceAnalytics()
+        async let scouting = loadScoutingAnalytics()
+        async let inventory = loadInventoryAnalytics()
+        async let events = loadEventAnalytics()
+        
+        teamPerformance = await teamPerf
+        scoutingAnalytics = await scouting
+        inventoryAnalytics = await inventory
+        eventAnalytics = await events
     }
     
     // MARK: - Team Performance Analytics
@@ -95,6 +91,7 @@ class AnalyticsService: ObservableObject {
             let coordinationScore = calculateCoordinationScore(for: teamReports)
             
             return TeamRankingData(
+                id: UUID(),
                 teamNumber: teamNumber,
                 autoScore: avgAutoScore,
                 teleopScore: avgTeleopScore,
@@ -165,7 +162,7 @@ class AnalyticsService: ObservableObject {
                 )
             }
             
-            return PerformanceTrendData(teamNumber: teamNumber, dataPoints: trendData)
+            return PerformanceTrendData(id: UUID(), teamNumber: teamNumber, dataPoints: trendData)
         }
     }
     
@@ -180,6 +177,7 @@ class AnalyticsService: ObservableObject {
             let reportCount = reports.count
             
             return StrategyEffectivenessData(
+                id: UUID(),
                 strategy: strategy,
                 averageScore: avgScore,
                 averageAllianceRating: avgAllianceRating,
@@ -207,6 +205,7 @@ class AnalyticsService: ObservableObject {
             )
             
             return AllianceRecommendationData(
+                id: UUID(),
                 captain: captain,
                 recommendedPartners: bestPartners,
                 expectedScore: expectedScore,
@@ -328,7 +327,7 @@ struct ScoutingAnalytics: Codable {
 }
 
 struct TeamRankingData: Codable, Identifiable {
-    let id = UUID()
+    let id: UUID
     let teamNumber: String
     let autoScore: Double
     let teleopScore: Double
@@ -342,7 +341,7 @@ struct TeamRankingData: Codable, Identifiable {
 }
 
 struct PerformanceTrendData: Codable, Identifiable {
-    let id = UUID()
+    let id: UUID
     let teamNumber: String
     let dataPoints: [PerformanceDataPoint]
 }
@@ -356,7 +355,7 @@ struct PerformanceDataPoint: Codable {
 }
 
 struct StrategyEffectivenessData: Codable, Identifiable {
-    let id = UUID()
+    let id: UUID
     let strategy: String
     let averageScore: Double
     let averageAllianceRating: Double
@@ -365,7 +364,7 @@ struct StrategyEffectivenessData: Codable, Identifiable {
 }
 
 struct AllianceRecommendationData: Codable, Identifiable {
-    let id = UUID()
+    let id: UUID
     let captain: TeamRankingData
     let recommendedPartners: [TeamRankingData]
     let expectedScore: Double
@@ -401,7 +400,7 @@ struct InventoryAnalytics: Codable {
 }
 
 struct InventoryActivity: Codable, Identifiable {
-    let id = UUID()
+    let id: UUID
     let itemName: String
     let action: String
     let quantity: Int
@@ -512,11 +511,11 @@ extension AnalyticsService {
     
     func exportAnalytics() {
         // TODO: Implement analytics export to PDF/CSV
-        print("Exporting analytics...")
+        DebugLog.log("Exporting analytics...")
     }
     
     func shareInsights() {
         // TODO: Implement insights sharing
-        print("Sharing insights...")
+        DebugLog.log("Sharing insights...")
     }
 }

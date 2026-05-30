@@ -9,7 +9,13 @@ import SwiftUI
 
 struct ScoutingTemplatesView: View {
     @EnvironmentObject var scoutingService: ScoutingService
+    @EnvironmentObject var teamService: TeamService
+    @EnvironmentObject var scheduleService: ScheduleService
+    var scoutingSelectedTab: Binding<Int> = .constant(1)
+    var isEmbeddedInScoutingHub: Bool = false
+    
     @State private var showingCreateTemplate = false
+    @State private var selectedTemplate: ScoutingTemplate? = nil
     @State private var searchText = ""
     
     var filteredTemplates: [ScoutingTemplate] {
@@ -24,79 +30,85 @@ struct ScoutingTemplatesView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Search Bar
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-                TextField("Search templates...", text: $searchText)
-                    .textFieldStyle(PlainTextFieldStyle())
-            }
-            .padding(DesignSystem.Spacing.md)
-            .background(DesignSystem.Colors.tertiaryBackground)
-            .cornerRadius(DesignSystem.CornerRadius.md)
-            .padding(.horizontal, DesignSystem.Spacing.md)
-            .padding(.bottom, DesignSystem.Spacing.sm)
-            
-            if scoutingService.isLoading {
-                ProgressView("Loading Templates...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let errorMessage = scoutingService.errorMessage {
-                VStack(spacing: DesignSystem.Spacing.md) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 40))
-                        .foregroundColor(DesignSystem.Colors.error)
-                    
-                    Text("Error Loading Templates")
-                        .font(.headline)
-                        .foregroundColor(DesignSystem.Colors.textPrimary)
-                    
-                    Text(errorMessage)
-                        .font(.subheadline)
-                        .foregroundColor(DesignSystem.Colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, DesignSystem.Spacing.lg)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if filteredTemplates.isEmpty {
-                ContentUnavailableView {
-                    Label("No Scouting Templates", systemImage: "doc.text")
-                } description: {
-                    Text("Create your first scouting template to start collecting match data.")
-                } actions: {
-                    Button("Create Template") {
-                        showingCreateTemplate = true
-                    }
-                    .primaryButtonStyle()
-                }
-            } else {
-                ScrollView {
+        ScrollView {
+            VStack(spacing: DesignSystem.Spacing.md) {
+                ScoutingSearchBar(
+                    text: $searchText,
+                    placeholder: "Search templates...",
+                    isEmbeddedInScoutingHub: isEmbeddedInScoutingHub
+                )
+                
+                if scoutingService.isLoading {
+                    EnhancedLoadingView(message: "Loading Templates...")
+                        .frame(minHeight: 200)
+                } else if let errorMessage = scoutingService.errorMessage {
+                    ErrorView(
+                        error: ErrorHandler.userFriendlyError(from: NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: errorMessage]), context: "Loading scouting templates"),
+                        onRetry: {
+                            Task {
+                                await scoutingService.loadScoutingData()
+                            }
+                        }
+                    )
+                } else if filteredTemplates.isEmpty {
+                    EnhancedEmptyStateView(
+                        icon: "doc.text.magnifyingglass",
+                        title: "No Templates Found",
+                        message: "Create a scouting template to start collecting match data. Templates define the fields you'll fill out when scouting teams.",
+                        actionTitle: "Create Template",
+                        action: {
+                            showingCreateTemplate = true
+                        }
+                    )
+                } else {
                     LazyVStack(spacing: DesignSystem.Spacing.md) {
                         ForEach(filteredTemplates) { template in
-                            NavigationLink(destination: Text("Template Detail View for \(template.name)")) {
-                                ScoutingTemplateCard(template: template)
-                            }
-                            .buttonStyle(PlainButtonStyle())
+                            ScoutingTemplateRow(
+                                template: template,
+                                onSelect: {
+                                    selectedTemplate = template
+                                },
+                                onDelete: {
+                                    Task {
+                                        do {
+                                            try await scoutingService.deleteScoutingTemplate(template: template)
+                                        } catch {
+                                            // Error handled by service
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
-                    .padding(DesignSystem.Spacing.md)
                 }
             }
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.bottom, DesignSystem.Spacing.xxl)
         }
-        .navigationTitle("Templates")
+        .background(DesignSystem.Colors.background)
+        .navigationTitle(isEmbeddedInScoutingHub ? "" : "Templates")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     showingCreateTemplate = true
                 } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(DesignSystem.Gradients.primary)
+                    HStack(spacing: DesignSystem.Spacing.xs) {
+                        Image(systemName: "plus.circle.fill")
+                        Text("New")
+                    }
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(DesignSystem.Gradients.primary)
                 }
             }
         }
         .sheet(isPresented: $showingCreateTemplate) {
             CreateScoutingTemplateView()
+                .environmentObject(scoutingService)
+                .environmentObject(teamService)
+        }
+        .sheet(item: $selectedTemplate) { template in
+            DynamicScoutingFormView(template: template)
                 .environmentObject(scoutingService)
         }
         .onAppear {
@@ -110,56 +122,124 @@ struct ScoutingTemplatesView: View {
     }
 }
 
+struct ScoutingTemplateRow: View {
+    let template: ScoutingTemplate
+    let onSelect: () -> Void
+    let onDelete: () -> Void
+    @State private var showingDeleteConfirmation = false
+    
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Button(action: onSelect) {
+                ScoutingTemplateCard(template: template)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Delete button (only for non-default templates)
+            if !template.isDefault {
+                Button(action: {
+                    showingDeleteConfirmation = true
+                }) {
+                    Image(systemName: "trash")
+                        .font(.title3)
+                        .foregroundColor(DesignSystem.Colors.error)
+                        .padding(DesignSystem.Spacing.sm)
+                        .background(DesignSystem.Colors.error.opacity(0.1))
+                        .cornerRadius(DesignSystem.CornerRadius.sm)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .contextMenu {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete Template", systemImage: "trash")
+            }
+            .disabled(template.isDefault)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !template.isDefault {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
+        .alert("Delete Template", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+        } message: {
+            Text("Are you sure you want to delete \"\(template.name)\"? This action cannot be undone.")
+        }
+    }
+}
+
 struct ScoutingTemplateCard: View {
     let template: ScoutingTemplate
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            HStack {
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            // Icon
+            ZStack {
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                    .fill(DesignSystem.Gradients.primary.opacity(0.15))
+                    .frame(width: 60, height: 60)
+                
+                Image(systemName: "doc.text.fill")
+                    .font(.title2)
+                    .foregroundStyle(DesignSystem.Gradients.primary)
+            }
+            
+            // Content
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                HStack {
                     Text(template.name)
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundColor(DesignSystem.Colors.textPrimary)
                     
-                    if let description = template.description {
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundColor(DesignSystem.Colors.textSecondary)
-                            .lineLimit(2)
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: DesignSystem.Spacing.xs) {
                     if template.isDefault {
-                        Label("Default", systemImage: "star.fill")
+                        Image(systemName: "star.fill")
                             .font(.caption)
                             .foregroundColor(DesignSystem.Colors.accent)
                     }
-                    
-                    Text("\(template.templateData.sections.count) sections")
-                        .font(.caption)
-                        .foregroundColor(DesignSystem.Colors.textSecondary)
                 }
+                
+                if let description = template.description {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                        .lineLimit(2)
+                }
+                
+                HStack(spacing: DesignSystem.Spacing.md) {
+                    Label("\(template.templateData.sections.count) sections", systemImage: "list.bullet")
+                    Label("\(totalFieldCount) fields", systemImage: "square.grid.2x2")
+                }
+                .font(.caption)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
             }
             
-            // Field count and last modified
-            HStack {
-                Label("\(totalFieldCount) fields", systemImage: "list.bullet")
-                    .font(.caption)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-                
-                Spacer()
-                
-                Text(template.updatedAt, style: .relative)
-                    .font(.caption)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-            }
+            Spacer()
+            
+            // Arrow
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(DesignSystem.Colors.textTertiary)
         }
-        .padding()
-        .cardStyle()
+        .padding(DesignSystem.Spacing.lg)
+        .background(DesignSystem.Colors.cardBackground)
+        .cornerRadius(DesignSystem.CornerRadius.lg)
+        .shadow(color: DesignSystem.Colors.shadow.opacity(0.1), radius: 4, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.lg)
+                .stroke(DesignSystem.Colors.border.opacity(0.3), lineWidth: 1)
+        )
     }
     
     private var totalFieldCount: Int {

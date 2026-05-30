@@ -158,7 +158,7 @@ class ExportService: ObservableObject {
     }
     
     func exportEventsToCSV(events: [Event]) -> String {
-        var csvString = "Title,Description,Start Date,End Date,Location,Event Type,Status,Google Calendar ID,Created At\n"
+        var csvString = "Title,Description,Start Date,End Date,Location,Event Type,Status,Created At\n"
         
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
@@ -172,7 +172,6 @@ class ExportService: ObservableObject {
                 escapeCSVField(event.location ?? ""),
                 event.eventType.rawValue,
                 event.status.rawValue,
-                escapeCSVField(event.googleCalendarId ?? ""),
                 formatter.string(from: event.createdAt)
             ].joined(separator: ",")
             
@@ -182,10 +181,227 @@ class ExportService: ObservableObject {
         return csvString
     }
     
+    // MARK: - Financial Exports
+    
+    func exportOrdersToCSV(orders: [Order]) -> String {
+        var csvString = "Order Number,Vendor,Total Amount,Order Date,Status,Expected Delivery,Actual Delivery,Budget,Category,Notes,Created At\n"
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        
+        for order in orders {
+            let row = [
+                escapeCSVField(order.orderNumber ?? ""),
+                escapeCSVField(order.vendor ?? ""),
+                "\(order.totalAmount)",
+                formatter.string(from: order.orderDate),
+                order.status.rawValue,
+                order.expectedDeliveryDate != nil ? formatter.string(from: order.expectedDeliveryDate!) : "",
+                order.actualDeliveryDate != nil ? formatter.string(from: order.actualDeliveryDate!) : "",
+                order.budgetId?.uuidString ?? "",
+                order.budgetCategoryId?.uuidString ?? "",
+                escapeCSVField(order.notes ?? ""),
+                formatter.string(from: order.createdAt)
+            ].joined(separator: ",")
+            
+            csvString += row + "\n"
+        }
+        
+        return csvString
+    }
+    
+    func exportBudgetsToCSV(budgets: [Budget]) -> String {
+        var csvString = "Name,Description,Total Amount,Start Date,End Date,Categories,Created At\n"
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        
+        for budget in budgets {
+            let categoriesJson = (try? JSONEncoder().encode(budget.categories))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            
+            let row = [
+                escapeCSVField(budget.name),
+                escapeCSVField(budget.description ?? ""),
+                "\(budget.totalAmount)",
+                formatter.string(from: budget.startDate),
+                formatter.string(from: budget.endDate),
+                escapeCSVField(categoriesJson),
+                formatter.string(from: budget.createdAt)
+            ].joined(separator: ",")
+            
+            csvString += row + "\n"
+        }
+        
+        return csvString
+    }
+    
+    func exportVendorsToCSV(vendors: [Vendor]) -> String {
+        var csvString = "Name,Contact Person,Email,Phone,Website,Address,Notes,Created At\n"
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        
+        for vendor in vendors {
+            let row = [
+                escapeCSVField(vendor.name),
+                escapeCSVField(vendor.contactPerson ?? ""),
+                escapeCSVField(vendor.email ?? ""),
+                escapeCSVField(vendor.phone ?? ""),
+                escapeCSVField(vendor.website ?? ""),
+                escapeCSVField(vendor.address ?? ""),
+                escapeCSVField(vendor.notes ?? ""),
+                formatter.string(from: vendor.createdAt)
+            ].joined(separator: ",")
+            
+            csvString += row + "\n"
+        }
+        
+        return csvString
+    }
+    
+    func generateFinancialSummaryPDF(summary: FinancialSummary, budgets: [Budget], orders: [Order], vendors: [Vendor]) -> Data? {
+        let pdfMetaData = [
+            kCGPDFContextCreator: "FTC HUB",
+            kCGPDFContextAuthor: "Financial Management",
+            kCGPDFContextTitle: "Financial Summary Report"
+        ]
+        
+        let format = UIGraphicsPDFRendererFormat()
+        format.documentInfo = pdfMetaData as [String: Any]
+        
+        let pageWidth = 8.5 * 72.0
+        let pageHeight = 11.0 * 72.0
+        let pageRect = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+        
+        let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: format)
+        
+        let data = renderer.pdfData { context in
+            context.beginPage()
+            
+            var currentY: CGFloat = 50
+            
+            // Title
+            let titleRect = CGRect(x: 50, y: currentY, width: pageWidth - 100, height: 40)
+            "Financial Summary Report".draw(in: titleRect, withAttributes: [
+                .font: UIFont.boldSystemFont(ofSize: 24),
+                .foregroundColor: UIColor.black
+            ])
+            
+            currentY += 50
+            
+            // Date
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateStyle = .long
+            let dateRect = CGRect(x: 50, y: currentY, width: pageWidth - 100, height: 20)
+            dateFormatter.string(from: Date()).draw(in: dateRect, withAttributes: [
+                .font: UIFont.systemFont(ofSize: 12),
+                .foregroundColor: UIColor.gray
+            ])
+            
+            currentY += 40
+            
+            // Summary Section
+            currentY = drawFinancialSection(
+                title: "Financial Summary",
+                content: [
+                    "Total Budget: $\(summary.totalBudget.formatted())",
+                    "Total Spent: $\(summary.totalSpent.formatted())",
+                    "Remaining: $\(summary.totalRemaining.formatted())",
+                    "Pending Orders: $\(summary.pendingAmount.formatted())",
+                    "Percentage Used: \(String(format: "%.1f", summary.percentageUsed))%",
+                    "Orders: \(summary.orderCount)",
+                    "Budgets: \(summary.budgetCount)",
+                    "Vendors: \(summary.vendorCount)"
+                ],
+                startY: currentY,
+                pageWidth: pageWidth,
+                pageHeight: pageHeight,
+                context: context
+            )
+            
+            // Budgets Section
+            if !budgets.isEmpty {
+                let budgetContent = budgets.prefix(5).map { budget in
+                    "\(budget.name): $\(budget.totalAmount.formatted()) (Used: \(String(format: "%.1f", budget.percentageUsed))%)"
+                }
+                currentY = drawFinancialSection(
+                    title: "Budgets (\(budgets.count))",
+                    content: budgetContent,
+                    startY: currentY,
+                    pageWidth: pageWidth,
+                    pageHeight: pageHeight,
+                    context: context
+                )
+            }
+            
+            // Recent Orders
+            let recentOrders = orders.filter { $0.status != .cancelled }.prefix(10)
+            if !recentOrders.isEmpty {
+                let orderContent = recentOrders.map { order in
+                    "\(order.vendorName): $\(order.totalAmount.formatted()) - \(order.status.displayName) (\(dateFormatter.string(from: order.orderDate)))"
+                }
+                currentY = drawFinancialSection(
+                    title: "Recent Orders",
+                    content: Array(orderContent),
+                    startY: currentY,
+                    pageWidth: pageWidth,
+                    pageHeight: pageHeight,
+                    context: context
+                )
+            }
+        }
+        
+        return data
+    }
+    
+    private func drawFinancialSection(
+        title: String,
+        content: [String],
+        startY: CGFloat,
+        pageWidth: CGFloat,
+        pageHeight: CGFloat,
+        context: UIGraphicsPDFRendererContext
+    ) -> CGFloat {
+        var currentY = startY
+        
+        // Check if we need a new page
+        if currentY > pageHeight - 200 {
+            context.beginPage()
+            currentY = 50
+        }
+        
+        // Section title
+        let titleRect = CGRect(x: 50, y: currentY, width: pageWidth - 100, height: 30)
+        title.draw(in: titleRect, withAttributes: [
+            .font: UIFont.boldSystemFont(ofSize: 16),
+            .foregroundColor: UIColor.black
+        ])
+        
+        currentY += 35
+        
+        // Section content
+        for line in content {
+            if currentY > pageHeight - 100 {
+                context.beginPage()
+                currentY = 50
+            }
+            
+            let lineRect = CGRect(x: 70, y: currentY, width: pageWidth - 140, height: 20)
+            line.draw(in: lineRect, withAttributes: [
+                .font: UIFont.systemFont(ofSize: 12),
+                .foregroundColor: UIColor.black
+            ])
+            currentY += 25
+        }
+        
+        return currentY + 20
+    }
+    
     // MARK: - PDF Export
     func generateTeamReportPDF(team: Team, members: [Profile], events: [Event], inventory: [InventoryItem], scoutingReports: [ScoutingReport]) -> Data? {
         let pdfMetaData = [
-            kCGPDFContextCreator: "FTC Team Hub",
+            kCGPDFContextCreator: "FTC HUB",
             kCGPDFContextAuthor: team.name,
             kCGPDFContextTitle: "\(team.displayName) - Team Report"
         ]

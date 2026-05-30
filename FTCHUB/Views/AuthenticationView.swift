@@ -6,178 +6,163 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct AuthenticationView: View {
     @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
     @State private var email = ""
     @State private var password = ""
-    @State private var firstName = ""
-    @State private var lastName = ""
     @State private var isSignUp = false
     @State private var showingPasswordReset = false
-    
+    @State private var showPassword = false
+
+    private let showsCloseButton: Bool
+    private let onContinueAsGuest: (() -> Void)?
+
+    init(
+        initialSignUpMode: Bool = false,
+        showsCloseButton: Bool = false,
+        onContinueAsGuest: (() -> Void)? = nil
+    ) {
+        self.showsCloseButton = showsCloseButton
+        self.onContinueAsGuest = onContinueAsGuest
+        _isSignUp = State(initialValue: initialSignUpMode)
+    }
+
     var body: some View {
         NavigationView {
-            ZStack {
-                // Background gradient
-                DesignSystem.Colors.background
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: DesignSystem.Spacing.xl) {
-                        // Header
-                        VStack(spacing: DesignSystem.Spacing.md) {
-                            Image(systemName: "robot.fill")
-                                .font(.system(size: 100))
-                                .foregroundStyle(DesignSystem.Gradients.primary)
-                                .shadow(color: DesignSystem.Colors.primary.opacity(0.2), radius: 20, x: 0, y: 8)
-                            
-                            VStack(spacing: DesignSystem.Spacing.xs) {
-                                Text("FTC Team Hub")
-                                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                                    .foregroundColor(DesignSystem.Colors.textPrimary)
-                                
-                                Text("DECODE 2025-2026")
-                                    .font(.subheadline)
-                                    .foregroundColor(DesignSystem.Colors.textSecondary)
-                                    .fontWeight(.medium)
-                            }
-                            
-                            Text("Manage your team, track progress, and dominate the competition")
-                                .font(.subheadline)
-                                .foregroundColor(DesignSystem.Colors.textSecondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, DesignSystem.Spacing.lg)
-                                .padding(.top, DesignSystem.Spacing.sm)
-                        }
-                        .padding(.top, DesignSystem.Spacing.xxl)
-                        
-                        // Form Card
-                        VStack(spacing: DesignSystem.Spacing.lg) {
-                            if isSignUp {
-                                VStack(spacing: DesignSystem.Spacing.md) {
-                                    CustomTextField(title: "First Name", text: $firstName, placeholder: "John")
-                                    CustomTextField(title: "Last Name", text: $lastName, placeholder: "Doe")
-                                }
-                                .transition(.move(edge: .top).combined(with: .opacity))
-                            }
-                            
-                            CustomTextField(title: "Email", text: $email, placeholder: "john@example.com")
-                                .keyboardType(.emailAddress)
-                                .autocapitalization(.none)
-                                .disableAutocorrection(true)
-                            
-                            CustomTextField(title: "Password", text: $password, placeholder: "••••••••", isSecure: true)
-                            
-                            if let errorMessage = authService.errorMessage {
-                                HStack(spacing: DesignSystem.Spacing.sm) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(DesignSystem.Colors.error)
-                                    Text(errorMessage)
-                                        .foregroundColor(DesignSystem.Colors.error)
-                                        .font(.caption)
-                                }
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .background(DesignSystem.Colors.error.opacity(0.1))
-                                .cornerRadius(DesignSystem.CornerRadius.md)
-                                .transition(.opacity)
-                            }
-                            
-                            // Action Button
-                            Button(action: handleAuth) {
-                                HStack {
-                                    if authService.isLoading {
-                                        ProgressView()
-                                            .tint(.white)
-                                    }
-                                    Text(isSignUp ? "Create Account" : "Sign In")
-                                        .fontWeight(.semibold)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(DesignSystem.Spacing.md)
-                                .background(
-                                    LinearGradient(
-                                        colors: isFormValid ? 
-                                            [DesignSystem.Colors.primary, DesignSystem.Colors.accent] :
-                                            [DesignSystem.Colors.textTertiary, DesignSystem.Colors.textTertiary],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .foregroundColor(.white)
-                                .cornerRadius(DesignSystem.CornerRadius.md)
-                                .shadow(color: DesignSystem.Colors.shadow, radius: 8, x: 0, y: 4)
-                            }
-                            .disabled(authService.isLoading || !isFormValid)
-                            
-                            if !isSignUp {
-                                Button("Forgot Password?") {
-                                    showingPasswordReset = true
-                                }
-                                .font(.subheadline)
-                                .foregroundColor(DesignSystem.Colors.primary)
-                                .padding(.top, DesignSystem.Spacing.xs)
-                            }
-                        }
-                        .padding(DesignSystem.Spacing.lg)
-                        .background(DesignSystem.Colors.cardBackground)
-                        .cornerRadius(DesignSystem.CornerRadius.lg)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.lg)
-                                .stroke(DesignSystem.Colors.border.opacity(0.5), lineWidth: 1)
-                        )
-                        .shadow(color: DesignSystem.Colors.shadow, radius: 12, x: 0, y: 4)
-                        .padding(.horizontal, DesignSystem.Spacing.lg)
-                        
-                        // Toggle Sign Up/Sign In
-                        Button(action: { 
-                            withAnimation {
-                                isSignUp.toggle()
-                                authService.errorMessage = nil
-                            }
-                        }) {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: isSignUp ? "arrow.left.circle.fill" : "arrow.right.circle.fill")
-                                Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
-                                    .fontWeight(.medium)
-                            }
-                            .foregroundColor(DesignSystem.Colors.primary)
-                            .padding(DesignSystem.Spacing.md)
-                        }
-                        
-                        Spacer()
-                            .frame(height: DesignSystem.Spacing.xl)
+            Group {
+                if isSignUp {
+                    SignUpFlowView(
+                        onSwitchToSignIn: switchToSignIn,
+                        onContinueAsGuest: continueAsGuest
+                    )
+                    .environmentObject(authService)
+                } else {
+                    signInContent
+                }
+            }
+            .onAppear {
+                UITextField.appearance().tintColor = .black
+                UITextView.appearance().tintColor = .black
+            }
+        }
+        .authLightScreen()
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if showsCloseButton {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
                     }
                 }
             }
         }
         .sheet(isPresented: $showingPasswordReset) {
             PasswordResetView(email: $email)
+                .environmentObject(authService)
         }
     }
-    
-    private var isFormValid: Bool {
-        if isSignUp {
-            return !email.isEmpty && !password.isEmpty && !firstName.isEmpty && !lastName.isEmpty && email.contains("@")
-        } else {
-            return !email.isEmpty && !password.isEmpty && email.contains("@")
+
+    private var signInContent: some View {
+        ScrollView {
+            VStack(spacing: DesignSystem.Spacing.xl) {
+                AuthHeaderView(subtitle: "Built for FIRST Tech Challenge teams")
+                    .padding(.top, DesignSystem.Spacing.xl)
+
+                SocialSignInButtons(isDisabled: authService.isLoading)
+                .padding(.horizontal, DesignSystem.Spacing.md)
+
+                AuthOrDivider()
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+
+                VStack(spacing: DesignSystem.Spacing.lg) {
+                    if let errorMessage = authService.errorMessage {
+                        CompactErrorView(
+                            message: errorMessage,
+                            onDismiss: { authService.errorMessage = nil }
+                        )
+                        .transition(.opacity.combined(with: .scale))
+                    }
+
+                    AuthTextField(
+                        icon: "envelope.fill",
+                        placeholder: "Email address",
+                        text: $email,
+                        keyboard: .emailAddress
+                    )
+
+                    AuthTextField(
+                        icon: "lock.fill",
+                        placeholder: "Password",
+                        text: $password,
+                        isSecure: true,
+                        showPassword: $showPassword
+                    )
+
+                    AuthPrimaryButton(
+                        title: "Sign In",
+                        isEnabled: isSignInFormValid,
+                        isLoading: authService.isLoading,
+                        action: handleSignIn
+                    )
+
+                    AuthBackLinkButton(title: "Forgot Password?", showsChevron: false) {
+                        showingPasswordReset = true
+                    }
+                }
+                .padding(.horizontal, DesignSystem.Spacing.md)
+
+                AuthSwitchLink(
+                    prefix: "Don't have an account?",
+                    actionWord: "Sign Up",
+                    action: switchToSignUp
+                )
+
+                AuthGuestButton(action: continueAsGuest)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+            }
+            .padding(.bottom, DesignSystem.Spacing.xxl)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var isSignInFormValid: Bool {
+        !email.isEmpty && !password.isEmpty && email.contains("@")
+    }
+
+    private func switchToSignUp() {
+        withAnimation(.spring(response: 0.3)) {
+            isSignUp = true
+            authService.errorMessage = nil
+            authService.infoMessage = nil
+            password = ""
         }
     }
-    
-    private func handleAuth() {
+
+    private func switchToSignIn() {
+        withAnimation(.spring(response: 0.3)) {
+            isSignUp = false
+            authService.errorMessage = nil
+            authService.infoMessage = nil
+            password = ""
+        }
+    }
+
+    private func continueAsGuest() {
+        DesignSystem.Haptics.impact(.light)
+        onContinueAsGuest?()
+        dismiss()
+        withAnimation(.spring(response: 0.3)) {
+            authService.enterGuestMode()
+        }
+    }
+
+    private func handleSignIn() {
         Task {
             do {
-                if isSignUp {
-                    try await authService.signUp(
-                        email: email,
-                        password: password,
-                        firstName: firstName,
-                        lastName: lastName
-                    )
-                } else {
-                    try await authService.signIn(email: email, password: password)
-                }
+                try await authService.signIn(email: email, password: password)
             } catch {
                 // Error is handled by AuthService
             }
@@ -187,58 +172,127 @@ struct AuthenticationView: View {
 
 struct PasswordResetView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var authService: AuthService
     @Binding var email: String
     @State private var isSending = false
     @State private var message = ""
-    
+
     var body: some View {
         NavigationView {
-            VStack(spacing: DesignSystem.Spacing.lg) {
-                Image(systemName: "lock.rotation")
-                    .font(.system(size: 60))
-                    .foregroundStyle(DesignSystem.Gradients.primary)
-                
-                Text("Reset Password")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("Enter your email address and we'll send you instructions to reset your password.")
-                    .font(.subheadline)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                
-                CustomTextField(title: "Email", text: $email, placeholder: "john@example.com")
-                    .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
-                
-                if !message.isEmpty {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundColor(message.contains("sent") ? DesignSystem.Colors.success : DesignSystem.Colors.error)
-                        .padding()
-                }
-                
-                Button(action: sendReset) {
-                    HStack {
-                        if isSending {
-                            ProgressView()
-                                .tint(.white)
+            ScrollView {
+                    VStack(spacing: 32) {
+                        VStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(AuthLightTheme.border.opacity(0.35))
+                                    .frame(width: 120, height: 120)
+
+                                Image(systemName: "lock.rotation")
+                                    .font(.system(size: 50, weight: .medium))
+                                    .foregroundColor(AuthLightTheme.textPrimary)
+                            }
+
+                            Text("Forgot Password")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundColor(AuthLightTheme.textPrimary)
+
+                            Text("Please enter your email address to reset your password.")
+                                .font(.body)
+                                .foregroundColor(DesignSystem.Colors.textSecondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
                         }
-                        Text("Send Reset Email")
-                            .fontWeight(.semibold)
+                        .padding(.top, 40)
+
+                        HStack(spacing: 12) {
+                            Image(systemName: "iphone")
+                                .font(.title3)
+                                .foregroundColor(DesignSystem.Colors.primary)
+                                .frame(width: 24)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(" Open Email on Your Phone")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(DesignSystem.Colors.textPrimary)
+
+                                Text("You MUST open the password reset link on the same phone where you have the FTC HUB app installed.")
+                                    .font(.caption)
+                                    .foregroundColor(DesignSystem.Colors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer()
+                        }
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(DesignSystem.Colors.primary.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(DesignSystem.Colors.primary.opacity(0.3), lineWidth: 1.5)
+                                )
+                        )
+                        .padding(.horizontal, 24)
+
+                        HStack {
+                            Image(systemName: "envelope.fill")
+                                .foregroundColor(DesignSystem.Colors.textSecondary)
+                                .frame(width: 20)
+                            TextField("Enter your email address...", text: $email)
+                                .textFieldStyle(.plain)
+                                .font(.body)
+                                .keyboardType(.emailAddress)
+                                .textInputAutocapitalization(.never)
+                        }
+                        .padding(16)
+                        .background(DesignSystem.Colors.cardBackground)
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(DesignSystem.Colors.border, lineWidth: 1)
+                        )
+                        .padding(.horizontal, 24)
+
+                        Button(action: sendReset) {
+                            HStack {
+                                if isSending {
+                                    ProgressView()
+                                        .tint(.white)
+                                } else {
+                                    Text("Send Password →")
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(DesignSystem.Colors.primary)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+                        .disabled(email.isEmpty || isSending)
+                        .padding(.horizontal, 24)
+
+                        VStack(spacing: 8) {
+                            Text("Didn't receive the email?")
+                                .font(.caption)
+                                .foregroundColor(DesignSystem.Colors.textSecondary)
+
+                            Button("Contact us at kartheek.eadara@gmail.com") {
+                                if let url = URL(string: "mailto:kartheek.eadara@gmail.com") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundColor(DesignSystem.Colors.primary)
+                        }
+                        .padding(.top, 16)
+
+                        Spacer()
+                            .frame(height: 40)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(DesignSystem.Gradients.primary)
-                    .foregroundColor(.white)
-                    .cornerRadius(DesignSystem.CornerRadius.md)
-                }
-                .disabled(email.isEmpty || isSending)
-                
-                Spacer()
             }
-            .padding(DesignSystem.Spacing.lg)
+            .authLightScreen()
             .navigationTitle("Password Reset")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -246,14 +300,29 @@ struct PasswordResetView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .foregroundColor(DesignSystem.Colors.primary)
                 }
             }
         }
     }
-    
+
     private func sendReset() {
-        // TODO: Implement password reset
-        message = "Reset email sent to \(email)"
+        guard !email.isEmpty else { return }
+
+        Task { @MainActor in
+            message = ""
+            isSending = true
+            defer { isSending = false }
+
+            do {
+                try await authService.resetPassword(email: email)
+                authService.verificationEmail = email
+                authService.isShowingPasswordResetSuccess = true
+                dismiss()
+            } catch {
+                message = error.localizedDescription
+            }
+        }
     }
 }
 

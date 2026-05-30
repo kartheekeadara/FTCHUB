@@ -36,7 +36,7 @@ class TroubleshootingService: ObservableObject {
             guides = try decoder.decode([TroubleshootingGuide].self, from: data)
         } catch {
             errorMessage = error.localizedDescription
-            print("Failed to load troubleshooting guides: \(error)")
+            DebugLog.log("Failed to load troubleshooting guides: \(error)")
         }
     }
     

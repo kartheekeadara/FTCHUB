@@ -79,7 +79,7 @@ struct SafetyOverviewView: View {
                         StatusCard(
                             title: "Consent Forms",
                             value: "\(safetyService.consentRecords.filter(\.isValid).count)",
-                            total: ConsentType.allCases.count,
+                            total: ConsentRecord.ConsentType.allCases.count,
                             icon: "doc.text.fill",
                             color: .blue
                         )
@@ -101,7 +101,7 @@ struct SafetyOverviewView: View {
                         .font(.headline)
                         .padding(.horizontal)
                     
-                    ForEach(ConsentType.allCases.filter(\.isRequired)) { type in
+                    ForEach(ConsentRecord.ConsentType.allCases, id: \.self) { type in
                         ConsentRequirementRow(
                             consentType: type,
                             hasConsent: safetyService.consentRecords.contains { $0.consentType == type && $0.isValid }
@@ -178,7 +178,7 @@ struct StatusCard: View {
 }
 
 struct ConsentRequirementRow: View {
-    let consentType: ConsentType
+    let consentType: ConsentRecord.ConsentType
     let hasConsent: Bool
     
     var body: some View {

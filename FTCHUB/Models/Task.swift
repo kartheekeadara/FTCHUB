@@ -62,18 +62,33 @@ struct TeamTask: Codable, Identifiable, Hashable {
     let status: TaskStatus
     let priority: TaskPriority
     let assigneeId: UUID?
+    let assigneeIds: [UUID]? // Multiple assignees (stored as JSON in description metadata)
     let dueDate: Date?
     let createdBy: UUID
     let createdAt: Date
     let updatedAt: Date
     
     enum CodingKeys: String, CodingKey {
-        case id, title, description, status, priority, dueDate
+        case id, title, description, status, priority
         case teamId = "team_id"
         case assigneeId = "assignee_id"
+        case assigneeIds = "assignee_ids"
+        case dueDate = "due_date"
         case createdBy = "created_by"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+    }
+    
+    // Computed property to get all assignee IDs (primary + additional)
+    var allAssigneeIds: [UUID] {
+        var ids: [UUID] = []
+        if let primaryId = assigneeId {
+            ids.append(primaryId)
+        }
+        if let additionalIds = assigneeIds {
+            ids.append(contentsOf: additionalIds.filter { $0 != assigneeId })
+        }
+        return Array(Set(ids)) // Remove duplicates
     }
     
     var isOverdue: Bool {

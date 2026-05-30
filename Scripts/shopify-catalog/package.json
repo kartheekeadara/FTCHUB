@@ -1,0 +1,18 @@
+{
+  "name": "ftchub-shopify-catalog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Builds a FTCHUB CatalogManifest JSON from a vendor's Shopify Storefront API.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build-manifest": "node build-manifest.js",
+    "upload-manifest": "node upload-manifest.js",
+    "build-and-upload": "node build-manifest.js && node upload-manifest.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}

@@ -27,8 +27,10 @@ class LocalStorage: ObservableObject {
     }
     
     deinit {
-        Task { @MainActor in
-            closeDatabase()
+        // Note: Using Task in deinit is safe here as closeDatabase() is synchronous
+        // and doesn't capture self in a way that would cause issues
+        Task { @MainActor [weak self] in
+            self?.closeDatabase()
         }
     }
     
@@ -41,7 +43,7 @@ class LocalStorage: ObservableObject {
             isInitialized = true
             updateStorageSize()
         } else {
-            print("Unable to open database")
+            DebugLog.log("Unable to open database")
         }
     }
     
@@ -122,9 +124,9 @@ class LocalStorage: ObservableObject {
         """
         
         if sqlite3_exec(db, createTablesSQL, nil, nil, nil) == SQLITE_OK {
-            print("Database tables created successfully")
+            DebugLog.log("Database tables created successfully")
         } else {
-            print("Error creating tables: \(String(cString: sqlite3_errmsg(db)))")
+            DebugLog.log("Error creating tables: \(String(cString: sqlite3_errmsg(db)))")
         }
     }
     
@@ -146,9 +148,9 @@ class LocalStorage: ObservableObject {
             sqlite3_bind_int64(statement, 3, timestamp)
             
             if sqlite3_step(statement) == SQLITE_DONE {
-                print("Saved \(tableName) record: \(id)")
+                DebugLog.log("Saved \(tableName) record: \(id)")
             } else {
-                print("Error saving \(tableName) record: \(String(cString: sqlite3_errmsg(db)))")
+                DebugLog.log("Error saving \(tableName) record: \(String(cString: sqlite3_errmsg(db)))")
             }
         }
         sqlite3_finalize(statement)
@@ -225,6 +227,7 @@ class LocalStorage: ObservableObject {
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
+        NotificationCenter.default.post(name: .ftchubSyncQueueDidMutate, object: nil)
     }
     
     func getSyncQueue() -> [SyncQueueItem] {
@@ -267,6 +270,7 @@ class LocalStorage: ObservableObject {
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
+        NotificationCenter.default.post(name: .ftchubSyncQueueDidMutate, object: nil)
     }
     
     func incrementRetryCount(id: Int) {
@@ -287,7 +291,7 @@ class LocalStorage: ObservableObject {
             let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
             storageSize = attributes[.size] as? Int64 ?? 0
         } catch {
-            print("Error getting storage size: \(error)")
+            DebugLog.log("Error getting storage size: \(error)")
         }
     }
     
@@ -302,7 +306,6 @@ class LocalStorage: ObservableObject {
     }
     
     func getStorageInfo() -> StorageInfo {
-        let fileURL = getDocumentsDirectory().appendingPathComponent(dbName)
         var recordCount = 0
         
         let tables = ["teams", "profiles", "events", "inventory_items", "scouting_reports", "scouting_templates", "tasks", "orders"]
@@ -352,4 +355,14 @@ struct StorageInfo {
     let totalRecords: Int
     let storageSize: Int64
     let lastModified: Date
+}
+
+// MARK: - App notifications (offline sync, scouting outbox)
+extension Notification.Name {
+    /// Posted when the SQLite sync queue mutates (pending count should refresh).
+    static let ftchubSyncQueueDidMutate = Notification.Name("ftchubSyncQueueDidMutate")
+    /// Posted when a scouting report could not reach the server and was stored for later upload.
+    static let ftchubScoutReportQueuedLocally = Notification.Name("ftchubScoutReportQueuedLocally")
+    /// Posted for `ftchub://tab/...` deep links; `userInfo["path"]` is e.g. `scouting`, `team`.
+    static let ftchubMainTabDeeplink = Notification.Name("ftchubMainTabNavigate")
 }

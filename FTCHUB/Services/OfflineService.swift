@@ -26,8 +26,16 @@ class OfflineService: ObservableObject {
     // Enhanced offline storage
     private let localStorage = LocalStorage.shared
     private let syncService = SyncService.shared
+    private var notificationObservers = Set<AnyCancellable>()
     
     init() {
+        NotificationCenter.default.publisher(for: .ftchubSyncQueueDidMutate)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateStorageInfo()
+            }
+            .store(in: &notificationObservers)
+        
         // Only start network monitoring if not in preview mode
         if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
             startNetworkMonitoring()
@@ -90,7 +98,7 @@ class OfflineService: ObservableObject {
                 try await supabase
                     .from("events")
                     .insert(event)
-                    .execute() as! Event
+                    .execute()
             } catch {
                 // If online save fails, queue for offline sync
                 queueOfflineOperation(.createEvent(event))
@@ -175,61 +183,61 @@ class OfflineService: ObservableObject {
             try await supabase
                 .from("events")
                 .insert(event)
-                .execute() as! InventoryItem
+                .execute()
             
         case .updateEvent(let event):
             try await supabase
                 .from("events")
                 .update(event)
                 .eq("id", value: event.id)
-                .execute() as! InventoryItem
+                .execute()
             
         case .deleteEvent(let eventId):
             try await supabase
                 .from("events")
                 .delete()
                 .eq("id", value: eventId)
-                .execute() as! InventoryItem
+                .execute()
             
         case .createInventoryItem(let item):
             try await supabase
                 .from("inventory_items")
                 .insert(item)
-                .execute() as! InventoryItem
+                .execute()
             
         case .updateInventoryItem(let item):
             try await supabase
                 .from("inventory_items")
                 .update(item)
                 .eq("id", value: item.id)
-                .execute() as! InventoryItem
+                .execute()
             
         case .deleteInventoryItem(let itemId):
             try await supabase
                 .from("inventory_items")
                 .delete()
                 .eq("id", value: itemId)
-                .execute() as! InventoryItem
+                .execute()
             
         case .createScoutingReport(let report):
             try await supabase
                 .from("scouting_reports")
                 .insert(report)
-                .execute() as! InventoryItem
+                .execute()
             
         case .updateScoutingReport(let report):
             try await supabase
                 .from("scouting_reports")
                 .update(report)
                 .eq("id", value: report.id)
-                .execute() as! InventoryItem
+                .execute()
             
         case .deleteScoutingReport(let reportId):
             try await supabase
                 .from("scouting_reports")
                 .delete()
                 .eq("id", value: reportId)
-                .execute() as! InventoryItem
+                .execute()
         }
     }
     

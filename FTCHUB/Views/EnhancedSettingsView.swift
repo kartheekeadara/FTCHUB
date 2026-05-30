@@ -9,259 +9,217 @@ import SwiftUI
 
 struct EnhancedSettingsView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var calendarService = SimplifiedCalendarService()
-    @StateObject private var notificationService = NotificationService()
-    @StateObject private var offlineService = OfflineService()
-    @StateObject private var exportService = ExportService.shared
-    @State private var showingCalendarAuth = false
-    @State private var showingNotificationSettings = false
-    @State private var showingExportOptions = false
-    @State private var showingBackupOptions = false
-    
+    @EnvironmentObject var teamService: TeamService
+    @ObservedObject private var notificationService = NotificationService.shared
+    @State private var showingProfileEditor = false
+
+    private var hasTeam: Bool { teamService.currentTeam != nil }
+
+    /// When `false`, assume an outer `NavigationStack` (e.g. guest More tab) so this view does not nest stacks and duplicate back buttons.
+    var embedsNavigationStack: Bool = true
+    /// Hides team-only and authenticated account actions when opened from guest More.
+    var isGuestContext: Bool = false
+
     var body: some View {
-        NavigationView {
-            List {
-                // User Profile Section
-                Section {
-                    UserProfileCard()
+        Group {
+            if embedsNavigationStack {
+                NavigationStack {
+                    settingsScroll
                 }
-                
-                // Team Management Section
-                Section("Team Management") {
-                    NavigationLink(destination: TeamSettingsView()) {
-                        SettingsRow(
-                            icon: "person.3.fill",
-                            title: "Team Settings",
-                            subtitle: "Manage team information and members"
-                        )
-                    }
-                    
-                    NavigationLink(destination: MemberManagementView()) {
-                        SettingsRow(
-                            icon: "person.badge.plus",
-                            title: "Invite Members",
-                            subtitle: "Add new team members"
-                        )
-                    }
-                }
-                
-                // Calendar & Events Section
-                Section("Calendar & Events") {
-                    Button(action: { showingCalendarAuth = true }) {
-                        SettingsRow(
-                            icon: "calendar",
-                            title: "Google Calendar",
-                            subtitle: calendarService.isConnected ? "Connected" : "Connect to sync events",
-                            trailing: calendarService.isConnected ? AnyView(Image(systemName: "checkmark.circle.fill").foregroundColor(.green)) : AnyView(EmptyView())
-                        )
-                    }
-                    .foregroundColor(.primary)
-                    
-                    NavigationLink(destination: EventManagementView()) {
-                        SettingsRow(
-                            icon: "calendar.badge.plus",
-                            title: "Event Management",
-                            subtitle: "Create and manage team events"
-                        )
-                    }
-                }
-                
-                // Scouting & Analytics Section
-                Section("Scouting & Analytics") {
-                    NavigationLink(destination: ScoutingSettingsView()) {
-                        SettingsRow(
-                            icon: "chart.bar.fill",
-                            title: "Scouting Settings",
-                            subtitle: "Configure scouting templates and reports"
-                        )
-                    }
-                    
-                    NavigationLink(destination: AllianceSelectionSettingsView()) {
-                        SettingsRow(
-                            icon: "person.2.circle.fill",
-                            title: "Alliance Selection",
-                            subtitle: "Configure team ranking criteria"
-                        )
-                    }
-                    
-                    NavigationLink(destination: QRCodeSettingsView()) {
-                        SettingsRow(
-                            icon: "qrcode",
-                            title: "QR Code Settings",
-                            subtitle: "Manage QR code generation and scanning"
-                        )
-                    }
-                }
-                
-                // Inventory & Finance Section
-                Section("Inventory & Finance") {
-                    NavigationLink(destination: InventorySettingsView()) {
-                        SettingsRow(
-                            icon: "cube.box.fill",
-                            title: "Inventory Settings",
-                            subtitle: "Configure inventory management"
-                        )
-                    }
-                    
-                    NavigationLink(destination: FinancialDashboardView()) {
-                        SettingsRow(
-                            icon: "dollarsign.circle.fill",
-                            title: "Financial Management",
-                            subtitle: "Orders, budgets, and vendors"
-                        )
-                    }
-                    
-                    NavigationLink(destination: FinanceSettingsView()) {
-                        SettingsRow(
-                            icon: "chart.bar.fill",
-                            title: "Finance Settings",
-                            subtitle: "Configure financial preferences"
-                        )
-                    }
-                }
-                
-                // Notifications Section
-                Section("Notifications") {
-                    Button(action: { showingNotificationSettings = true }) {
-                        SettingsRow(
-                            icon: "bell.fill",
-                            title: "Notification Settings",
-                            subtitle: notificationService.isAuthorized ? "Configured" : "Set up notifications"
-                        )
-                    }
-                    .foregroundColor(.primary)
-                    
-                    NavigationLink(destination: GrantDeadlinesView()) {
-                        SettingsRow(
-                            icon: "calendar.badge.exclamationmark",
-                            title: "Grant Deadlines",
-                            subtitle: "Track funding opportunities"
-                        )
-                    }
-                }
-                
-                // Data & Sync Section
-                Section("Data & Sync") {
-                    Button(action: { showingExportOptions = true }) {
-                        SettingsRow(
-                            icon: "square.and.arrow.up",
-                            title: "Export Data",
-                            subtitle: "Export team data to CSV/PDF"
-                        )
-                    }
-                    .foregroundColor(.primary)
-                    
-                    Button(action: { showingBackupOptions = true }) {
-                        SettingsRow(
-                            icon: "icloud.and.arrow.up",
-                            title: "Backup & Restore",
-                            subtitle: "Backup or restore team data"
-                        )
-                    }
-                    .foregroundColor(.primary)
-                    
-                    NavigationLink(destination: OfflineSettingsView()) {
-                        SettingsRow(
-                            icon: "wifi.slash",
-                            title: "Offline Mode",
-                            subtitle: offlineService.isOfflineMode ? "Enabled" : "Configure offline access",
-                            trailing: offlineService.isOfflineMode ? AnyView(Image(systemName: "checkmark.circle.fill").foregroundColor(.green)) : AnyView(EmptyView())
-                        )
-                    }
-                }
-                
-                // Privacy & Security Section
-                Section("Privacy & Security") {
-                    NavigationLink(destination: PrivacySettingsView()) {
-                        SettingsRow(
-                            icon: "lock.shield.fill",
-                            title: "Privacy Settings",
-                            subtitle: "Manage data privacy and security"
-                        )
-                    }
-                    
-                    NavigationLink(destination: DataManagementView()) {
-                        SettingsRow(
-                            icon: "externaldrive.fill",
-                            title: "Data Management",
-                            subtitle: "Manage stored data and cache"
-                        )
-                    }
-                }
-                
-                // Support Section
-                Section("Support") {
-                    NavigationLink(destination: HelpCenterView()) {
-                        SettingsRow(
-                            icon: "questionmark.circle.fill",
-                            title: "Help & Support",
-                            subtitle: "Get help and contact support"
-                        )
-                    }
-                    
-                    NavigationLink(destination: AboutView()) {
-                        SettingsRow(
-                            icon: "info.circle.fill",
-                            title: "About",
-                            subtitle: "App version and information"
-                        )
-                    }
-                }
-                
-                // Sign Out Section
-                Section {
-                    Button("Sign Out", role: .destructive) {
-                        Task {
-                            try? await authService.signOut()
+            } else {
+                settingsScroll
+            }
+        }
+        .sheet(isPresented: $showingProfileEditor) {
+            if let profile = authService.currentUser {
+                ProfileEditorView(profile: profile)
+                    .environmentObject(authService)
+            } else {
+                NavigationView {
+                    VStack(spacing: DesignSystem.Spacing.lg) {
+                        Image(systemName: "person.crop.circle.badge.questionmark")
+                            .font(.system(size: 64))
+                            .foregroundColor(DesignSystem.Colors.textSecondary)
+                        Text(L10n.Settings.profileUnavailable)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(DesignSystem.Colors.textSecondary)
+                        Button(L10n.General.actionClose) {
+                            showingProfileEditor = false
                         }
+                        .primaryButtonStyle()
                     }
+                    .padding()
+                    .navigationTitle(L10n.Settings.profileEditorTitle)
                 }
             }
-            .navigationTitle("Settings")
         }
-        .sheet(isPresented: $showingCalendarAuth) {
-            CalendarAuthView()
-                .environmentObject(calendarService)
+    }
+
+    private var settingsScroll: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+                if !isGuestContext {
+                    settingsListContent
+
+                    Text(L10n.Settings.deleteAccountCaption)
+                        .font(.caption)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                        .padding(.horizontal, DesignSystem.Spacing.xs)
+                }
+            }
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.vertical, DesignSystem.Spacing.md)
         }
-        .sheet(isPresented: $showingNotificationSettings) {
-            NotificationSettingsView()
+        .background(Color(.systemBackground))
+        .tabBarScrollInset()
+        .navigationTitle(L10n.Settings.navigationTitle)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private var settingsListContent: some View {
+        VStack(spacing: 10) {
+            Button {
+                showingProfileEditor = true
+            } label: {
+                UserProfileCard(showChevron: true)
+            }
+            .buttonStyle(.plain)
+
+            if let infoMessage = authService.infoMessage {
+                SettingsInfoMessage(message: infoMessage)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+            }
+
+            NavigationLink {
+                AppearanceSettingsView()
+            } label: {
+                SettingsListRow(
+                    icon: "paintbrush",
+                    title: L10n.Settings.appearanceTitle,
+                    subtitle: L10n.Settings.appearanceSubtitle,
+                    showsDisclosure: false
+                )
+            }
+            .buttonStyle(.plain)
+
+            if hasTeam {
+                NavigationLink(destination: TeamSettingsView()) {
+                    SettingsListRow(
+                        icon: "person.3",
+                        title: L10n.Settings.teamSettingsTitle,
+                        subtitle: L10n.Settings.teamSettingsSubtitle,
+                        showsDisclosure: false
+                    )
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink(destination: InviteCodeView()) {
+                    SettingsListRow(
+                        icon: "person.badge.plus",
+                        title: L10n.Settings.inviteMembersTitle,
+                        subtitle: L10n.Settings.inviteMembersSubtitle,
+                        showsDisclosure: false
+                    )
+                }
+                .buttonStyle(.plain)
+            } else {
+                TeamRequiredRow(feature: L10n.Settings.teamSettingsTitle)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+            }
+
+            NavigationLink {
+                NotificationSettingsView()
+                    .environmentObject(notificationService)
+            } label: {
+                SettingsListRow(
+                    icon: "bell",
+                    title: L10n.Settings.notificationsTitle,
+                    subtitle: notificationsSubtitle,
+                    showsDisclosure: false
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                PrivacyLegalHubView()
+                    .environmentObject(authService)
+            } label: {
+                SettingsListRow(
+                    icon: "shield.lefthalf.filled",
+                    title: L10n.Settings.privacyLegalHubTitle,
+                    subtitle: L10n.Settings.privacyLegalHubSubtitle,
+                    showsDisclosure: false
+                )
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                Task {
+                    try? await authService.signOut()
+                }
+            } label: {
+                SettingsListRow(
+                    icon: "rectangle.portrait.and.arrow.right",
+                    title: L10n.General.actionSignOut,
+                    subtitle: "",
+                    titleColor: DesignSystem.Colors.error,
+                    showsDisclosure: false
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                DeleteAccountView()
+                    .environmentObject(authService)
+            } label: {
+                SettingsListRow(
+                    icon: "trash",
+                    title: L10n.Settings.deleteAccountTitle,
+                    subtitle: L10n.Settings.deleteAccountSubtitle,
+                    titleColor: DesignSystem.Colors.error,
+                    showsDisclosure: false
+                )
+            }
+            .buttonStyle(.plain)
         }
-        .sheet(isPresented: $showingExportOptions) {
-            ExportOptionsView()
-                .environmentObject(exportService)
+    }
+
+    private var notificationsSubtitle: String {
+        if notificationService.isAuthorized {
+            return L10n.General.statusConfigured
         }
-        .sheet(isPresented: $showingBackupOptions) {
-            BackupOptionsView()
-                .environmentObject(exportService)
-        }
+        return L10n.Settings.notificationsSubtitle
     }
 }
 
+// MARK: - Profile Header
+
 struct UserProfileCard: View {
     @EnvironmentObject var authService: AuthService
-    
+    var showChevron: Bool = false
+
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.md) {
             Circle()
                 .fill(DesignSystem.Gradients.primary)
-                .frame(width: 60, height: 60)
+                .frame(width: 56, height: 56)
                 .overlay(
                     Text(authService.currentUser?.initials ?? "?")
-                        .font(.title2)
+                        .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                 )
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(authService.currentUser?.displayName ?? "Unknown User")
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(DesignSystem.Colors.textPrimary)
-                
+
                 Text(authService.currentUser?.email ?? "")
-                    .font(.subheadline)
+                    .font(.system(size: 13))
                     .foregroundColor(DesignSystem.Colors.textSecondary)
-                
+
                 if let role = authService.currentUser?.role {
                     Text(role.displayName)
                         .font(.caption)
@@ -271,392 +229,120 @@ struct UserProfileCard: View {
                         .foregroundColor(DesignSystem.Colors.primary)
                         .cornerRadius(DesignSystem.CornerRadius.sm)
                 }
-            }
-            
-            Spacer()
-            
-            Button("Edit") {
-                // Navigate to profile editing
-            }
-            .font(.caption)
-            .foregroundColor(DesignSystem.Colors.primary)
-        }
-        .padding(.vertical, DesignSystem.Spacing.sm)
-    }
-}
 
-struct SettingsRow: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let trailing: AnyView?
-    
-    init(icon: String, title: String, subtitle: String, trailing: AnyView? = nil) {
-        self.icon = icon
-        self.title = title
-        self.subtitle = subtitle
-        self.trailing = trailing
-    }
-    
-    var body: some View {
-        HStack(spacing: DesignSystem.Spacing.md) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(DesignSystem.Colors.primary)
-                .frame(width: 24)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(DesignSystem.Colors.textPrimary)
-                
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
+                if authService.currentUser?.isProfileIncomplete == true {
+                    Text(L10n.Settings.profileIncompleteHint)
+                        .font(.system(size: 13))
+                        .foregroundColor(DesignSystem.Colors.textTertiary)
+                }
             }
-            
+
             Spacer()
-            
-            if let trailing = trailing {
-                trailing
-            } else {
+
+            if showChevron {
                 Image(systemName: "chevron.right")
-                    .font(.caption)
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(DesignSystem.Colors.textTertiary)
             }
         }
-        .padding(.vertical, DesignSystem.Spacing.xs)
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.md)
+        .contentShape(Rectangle())
     }
 }
 
-// MARK: - Supporting Views
+extension Profile {
+    var isProfileIncomplete: Bool {
+        let nameMissing = (firstName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            && (lastName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        let phoneMissing = phone?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+        let emergencyMissing = (emergencyContactName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            || (emergencyContactPhone?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        return nameMissing || phoneMissing || emergencyMissing
+    }
+}
 
-struct CalendarAuthView: View {
-    @EnvironmentObject var calendarService: SimplifiedCalendarService
-    @Environment(\.dismiss) private var dismiss
-    
+struct TeamRequiredRow: View {
+    let feature: String
+
     var body: some View {
-        NavigationView {
-            VStack(spacing: DesignSystem.Spacing.lg) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 80))
-                    .foregroundStyle(DesignSystem.Gradients.primary)
-                
-                Text("Connect Google Calendar")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(DesignSystem.Colors.textPrimary)
-                
-                Text("Sync your team events with Google Calendar for seamless scheduling and reminders.")
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 16))
+                .foregroundColor(DesignSystem.Colors.primary)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.General.teamRequiredMessage(feature))
                     .font(.subheadline)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, DesignSystem.Spacing.lg)
-                
-                if calendarService.isConnected {
-                    VStack(spacing: DesignSystem.Spacing.md) {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("Connected to Google Calendar")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                        }
-                        
-                        Button("Disconnect") {
-                            calendarService.isConnected = false
-                        }
-                        .foregroundColor(.red)
-                    }
-                } else {
-                    Button("Connect to Calendar") {
-                        Task {
-                            await calendarService.requestCalendarAccess()
-                        }
-                    }
-                    .primaryButtonStyle()
-                }
-                
-                Spacer()
-            }
-            .padding(DesignSystem.Spacing.lg)
-            .navigationTitle("Calendar Sync")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct ExportOptionsView: View {
-    @EnvironmentObject var exportService: ExportService
-    @Environment(\.dismiss) private var dismiss
-    @State private var selectedFormat: ExportFormat = .csv
-    @State private var selectedData: ExportDataType = .all
-    
-    enum ExportFormat: String, CaseIterable {
-        case csv = "CSV"
-        case pdf = "PDF"
-    }
-    
-    enum ExportDataType: String, CaseIterable {
-        case all = "All Data"
-        case inventory = "Inventory Only"
-        case scouting = "Scouting Only"
-        case team = "Team Data Only"
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: DesignSystem.Spacing.lg) {
-                Text("Export Team Data")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .fontWeight(.medium)
                     .foregroundColor(DesignSystem.Colors.textPrimary)
-                
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                    Text("Export Format")
-                        .font(.headline)
-                        .foregroundColor(DesignSystem.Colors.textPrimary)
-                    
-                    Picker("Format", selection: $selectedFormat) {
-                        ForEach(ExportFormat.allCases, id: \.self) { format in
-                            Text(format.rawValue).tag(format)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                    Text("Data to Export")
-                        .font(.headline)
-                        .foregroundColor(DesignSystem.Colors.textPrimary)
-                    
-                    Picker("Data", selection: $selectedData) {
-                        ForEach(ExportDataType.allCases, id: \.self) { dataType in
-                            Text(dataType.rawValue).tag(dataType)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-                
-                Button("Export Data") {
-                    Task {
-                        // Implement export logic
-                    }
-                }
-                .primaryButtonStyle()
-                .disabled(exportService.isExporting)
-                
-                if exportService.isExporting {
-                    ProgressView("Exporting...")
-                        .progressViewStyle(CircularProgressViewStyle())
-                }
-                
-                Spacer()
-            }
-            .padding(DesignSystem.Spacing.lg)
-            .navigationTitle("Export Data")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct BackupOptionsView: View {
-    @EnvironmentObject var exportService: ExportService
-    @Environment(\.dismiss) private var dismiss
-    @State private var isCreatingBackup = false
-    @State private var isRestoringBackup = false
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: DesignSystem.Spacing.lg) {
-                Text("Backup & Restore")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(DesignSystem.Colors.textPrimary)
-                
-                Text("Create a backup of your team data or restore from a previous backup.")
-                    .font(.subheadline)
+                Text(L10n.General.teamRequiredHint)
+                    .font(.caption)
                     .foregroundColor(DesignSystem.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, DesignSystem.Spacing.lg)
-                
-                VStack(spacing: DesignSystem.Spacing.md) {
-                    Button("Create Backup") {
-                        Task {
-                            isCreatingBackup = true
-                            do {
-                                let _ = try await exportService.createBackup()
-                                // Handle success
-                            } catch {
-                                // Handle error
-                            }
-                            isCreatingBackup = false
-                        }
-                    }
-                    .primaryButtonStyle()
-                    .disabled(isCreatingBackup)
-                    
-                    Button("Restore from Backup") {
-                        isRestoringBackup = true
-                        // Implement file picker for backup restoration
-                    }
-                    .secondaryButtonStyle()
-                    .disabled(isRestoringBackup)
+
+                Button {
+                    NotificationCenter.default.post(name: .ftcShowTeamTab, object: nil)
+                } label: {
+                    Text("Go to Team Tab →")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(DesignSystem.Colors.primary)
+                        .clipShape(Capsule())
                 }
-                
-                if isCreatingBackup || isRestoringBackup {
-                    ProgressView("Processing...")
-                        .progressViewStyle(CircularProgressViewStyle())
-                }
-                
-                Spacer()
-            }
-            .padding(DesignSystem.Spacing.lg)
-            .navigationTitle("Backup & Restore")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
+                .accessibilityLabel("Open Team tab")
+                .padding(.top, 2)
             }
         }
+        .padding(12)
+        .background(DesignSystem.Colors.orangeTintWash)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(DesignSystem.Colors.orangeTintBorder, lineWidth: 1))
+        .accessibilityElement(children: .combine)
     }
 }
 
-// MARK: - Placeholder Views for Navigation
-
-struct TeamSettingsView: View {
-    var body: some View {
-        Text("Team Settings")
-            .navigationTitle("Team Settings")
-    }
+extension Notification.Name {
+    static let ftcShowTeamTab = Notification.Name("ftchub.showTeamTab")
+    static let ftcOpenEvent = Notification.Name("ftchub.openEvent")
+    static let ftcOpenTask = Notification.Name("ftchub.openTask")
+    static let ftcOpenInventoryItem = Notification.Name("ftchub.openInventoryItem")
+    static let ftcOpenMatch = Notification.Name("ftchub.openMatch")
 }
 
-struct MemberManagementView: View {
-    var body: some View {
-        Text("Member Management")
-            .navigationTitle("Invite Members")
-    }
-}
+struct SettingsInfoMessage: View {
+    let message: String
 
-struct EventManagementView: View {
     var body: some View {
-        Text("Event Management")
-            .navigationTitle("Event Management")
-    }
-}
-
-struct ScoutingSettingsView: View {
-    var body: some View {
-        Text("Scouting Settings")
-            .navigationTitle("Scouting Settings")
-    }
-}
-
-struct AllianceSelectionSettingsView: View {
-    var body: some View {
-        Text("Alliance Selection Settings")
-            .navigationTitle("Alliance Selection")
-    }
-}
-
-struct QRCodeSettingsView: View {
-    var body: some View {
-        Text("QR Code Settings")
-            .navigationTitle("QR Code Settings")
-    }
-}
-
-struct InventorySettingsView: View {
-    var body: some View {
-        Text("Inventory Settings")
-            .navigationTitle("Inventory Settings")
-    }
-}
-
-struct FinanceSettingsView: View {
-    var body: some View {
-        Text("Finance Settings")
-            .navigationTitle("Finance Settings")
-    }
-}
-
-struct GrantDeadlinesView: View {
-    var body: some View {
-        Text("Grant Deadlines")
-            .navigationTitle("Grant Deadlines")
-    }
-}
-
-struct OfflineSettingsView: View {
-    var body: some View {
-        Text("Offline Settings")
-            .navigationTitle("Offline Mode")
-    }
-}
-
-struct PrivacySettingsView: View {
-    var body: some View {
-        Text("Privacy Settings")
-            .navigationTitle("Privacy Settings")
-    }
-}
-
-struct DataManagementView: View {
-    var body: some View {
-        Text("Data Management")
-            .navigationTitle("Data Management")
-    }
-}
-
-struct HelpCenterView: View {
-    var body: some View {
-        Text("Help & Support")
-            .navigationTitle("Help & Support")
-    }
-}
-
-struct AboutView: View {
-    var body: some View {
-        VStack(spacing: DesignSystem.Spacing.lg) {
-            Image(systemName: "app.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(DesignSystem.Gradients.primary)
-            
-            Text("FTC Team Hub")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            Text("Version 1.0.0")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Text("A comprehensive team management app for FIRST Tech Challenge teams.")
-                .font(.body)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            
-            Spacer()
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "checkmark.seal.fill")
+                .foregroundColor(DesignSystem.Colors.success)
+                .imageScale(.medium)
+            Text(message)
+                .font(.caption)
+                .foregroundColor(DesignSystem.Colors.success)
         }
-        .padding()
-        .navigationTitle("About")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(message)
+    }
+}
+
+struct SettingsErrorMessage: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(DesignSystem.Colors.error)
+                .imageScale(.medium)
+            Text(message)
+                .font(.caption)
+                .foregroundColor(DesignSystem.Colors.error)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(message)
     }
 }
 

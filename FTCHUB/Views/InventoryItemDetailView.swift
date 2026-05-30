@@ -17,26 +17,44 @@ struct InventoryItemDetailView: View {
     @State private var showingDeleteConfirmation = false
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: DesignSystem.Spacing.lg) {
-                    // Header Card
-                    ItemHeaderCard(item: item)
-                    
-                    // Stock Information
-                    StockInfoCard(item: item)
-                    
-                    // Item Details
-                    ItemDetailsCard(item: item)
-                    
-                    // Action Buttons
-                    ActionButtonsCard(
-                        onEdit: { showingEditView = true },
-                        onAdjustStock: { showingStockAdjustment = true },
-                        onDelete: { showingDeleteConfirmation = true }
-                    )
+        NavigationStack {
+            GeometryReader { geometry in
+                ScrollView {
+                    if geometry.size.width > geometry.size.height {
+                        // Landscape: Two-column layout
+                        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                            VStack(spacing: DesignSystem.Spacing.md) {
+                                ItemHeaderCard(item: item)
+                                StockInfoCard(item: item)
+                            }
+                            .frame(maxWidth: .infinity)
+                            
+                            VStack(spacing: DesignSystem.Spacing.md) {
+                                ItemDetailsCard(item: item)
+                                ActionButtonsCard(
+                                    onEdit: { showingEditView = true },
+                                    onAdjustStock: { showingStockAdjustment = true },
+                                    onDelete: { showingDeleteConfirmation = true }
+                                )
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .padding(DesignSystem.Spacing.md)
+                    } else {
+                        // Portrait: Single column
+                        VStack(spacing: DesignSystem.Spacing.lg) {
+                            ItemHeaderCard(item: item)
+                            StockInfoCard(item: item)
+                            ItemDetailsCard(item: item)
+                            ActionButtonsCard(
+                                onEdit: { showingEditView = true },
+                                onAdjustStock: { showingStockAdjustment = true },
+                                onDelete: { showingDeleteConfirmation = true }
+                            )
+                        }
+                        .padding(DesignSystem.Spacing.md)
+                    }
                 }
-                .padding(DesignSystem.Spacing.md)
             }
             .navigationTitle("Item Details")
             .navigationBarTitleDisplayMode(.inline)

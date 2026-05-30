@@ -13,7 +13,7 @@ struct ConsentManagementView: View {
     
     var body: some View {
         List {
-            ForEach(ConsentType.allCases) { type in
+            ForEach(ConsentRecord.ConsentType.allCases, id: \.self) { type in
                 Section(header: Text(type.displayName)) {
                     let consents = safetyService.consentRecords.filter { $0.consentType == type }
                     
@@ -51,11 +51,9 @@ struct ConsentRow: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
-                if let consentDate = consent.consentDate {
-                    Text("Given: \(consentDate.formatted(date: .abbreviated, time: .omitted))")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
+                Text("Given: \(consent.consentDate.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
             
             Spacer()
@@ -97,20 +95,15 @@ struct ConsentDetailView: View {
                 
                 Section("Consent Details") {
                     LabeledContent("Type", value: consent.consentType.displayName)
-                    LabeledContent("Status", value: consent.consentGiven ? "Given" : "Not Given")
-                    
-                    if let consentDate = consent.consentDate {
-                        LabeledContent("Date Given", value: consentDate.formatted(date: .long, time: .omitted))
-                    }
+                    LabeledContent("Status", value: consent.isValid ? "Valid" : (consent.verified ? "Pending Verification" : "Not Verified"))
+                    LabeledContent("Date Given", value: consent.consentDate.formatted(date: .long, time: .omitted))
                     
                     if let expirationDate = consent.expirationDate {
                         LabeledContent("Expires", value: expirationDate.formatted(date: .long, time: .omitted))
                     }
-                }
-                
-                if let notes = consent.notes {
-                    Section("Notes") {
-                        Text(notes)
+                    
+                    if let verificationMethod = consent.verificationMethod {
+                        LabeledContent("Verification Method", value: verificationMethod.rawValue.capitalized)
                     }
                 }
             }

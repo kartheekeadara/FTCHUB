@@ -1,0 +1,39 @@
+name: Shopify catalog sync
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # Daily at 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts/shopify-catalog
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm install
+
+      - name: Build manifest
+        env:
+          SHOPIFY_STORE_DOMAIN: ${{ secrets.SHOPIFY_STORE_DOMAIN }}
+          SHOPIFY_STOREFRONT_TOKEN: ${{ secrets.SHOPIFY_STOREFRONT_TOKEN }}
+          SHOPIFY_API_VERSION: "2024-10"
+          MANUFACTURER_NAME: ${{ secrets.MANUFACTURER_NAME }}
+          COLLECTION_HANDLE: ${{ secrets.SHOPIFY_COLLECTION_HANDLE }}
+          CHUNK_SIZE: "500"
+        run: npm run build-manifest
+
+      - name: Upload manifest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+          SUPABASE_MANIFEST_PATH: ${{ secrets.SUPABASE_MANIFEST_PATH }}
+        run: npm run upload-manifest

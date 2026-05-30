@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import Charts
+// Charts framework is built into iOS 16+
 
 // MARK: - Stat Card
 struct StatCard: View {
@@ -187,7 +187,7 @@ struct SimpleBarChart: View {
                     
                     Rectangle()
                         .fill(color)
-                        .frame(height: max(20, (item.1 / chartMaxValue) * 100))
+                        .frame(height: max(20, chartMaxValue > 0 ? (item.1 / chartMaxValue) * 100 : 20))
                         .cornerRadius(4)
                     
                     Text(item.0)
@@ -233,7 +233,7 @@ struct PercentageBar: View {
                     
                     Rectangle()
                         .fill(color)
-                        .frame(width: geometry.size.width * (percentage / 100))
+                        .frame(width: geometry.size.width * max(0, min(1, percentage / 100)))
                         .cornerRadius(4)
                         .animation(.easeInOut, value: percentage)
                 }

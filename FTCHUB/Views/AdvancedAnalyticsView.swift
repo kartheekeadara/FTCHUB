@@ -15,7 +15,7 @@ struct AdvancedAnalyticsView: View {
     @State private var selectedMetric: AnalyticsMetric = .matchPerformance
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     // Time Range Picker
@@ -147,26 +147,36 @@ struct AdvancedAnalyticsView: View {
                     .padding(.horizontal)
                     
                     // Team Comparison
-                    ChartCard(title: "Team Comparison", subtitle: "vs. Top 5 teams") {
-                        if analyticsService.teamComparison.isEmpty {
-                            EmptyChartPlaceholder(message: "No comparison data available")
-                        } else {
-                            Chart {
-                                ForEach(analyticsService.teamComparison) { team in
-                                    BarMark(
-                                        x: .value("Team", team.teamNumber),
-                                        y: .value("Avg Score", team.averageScore)
-                                    )
-                                    .foregroundStyle(team.isOurTeam ? Color.blue : Color.gray.opacity(0.5))
-                                    .cornerRadius(4)
+                    GeometryReader { geometry in
+                        ChartCard(title: "Team Comparison", subtitle: "vs. Top 5 teams") {
+                            if analyticsService.teamComparison.isEmpty {
+                                EmptyChartPlaceholder(message: "No comparison data available")
+                            } else {
+                                Chart {
+                                    ForEach(analyticsService.teamComparison) { team in
+                                        BarMark(
+                                            x: .value("Team", team.teamNumber),
+                                            y: .value("Avg Score", team.averageScore)
+                                        )
+                                        .foregroundStyle(team.isOurTeam ? Color.blue : Color.gray.opacity(0.5))
+                                        .cornerRadius(4)
+                                    }
+                                }
+                                .frame(height: geometry.size.width > geometry.size.height ? 250 : 200)
+                                .chartYAxis {
+                                    AxisMarks(position: .leading)
+                                }
+                                .chartXAxis {
+                                    AxisMarks { _ in
+                                        AxisValueLabel()
+                                            .font(.caption2)
+                                    }
                                 }
                             }
-                            .frame(height: 200)
-                            .chartYAxis {
-                                AxisMarks(position: .leading)
-                            }
                         }
+                        .frame(width: geometry.size.width)
                     }
+                    .frame(height: 280)
                     .padding(.horizontal)
                     
                     // Strengths & Weaknesses

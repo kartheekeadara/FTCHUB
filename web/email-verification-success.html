@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verified - FTC HUB</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #f0f4f8;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 480px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* GREEN CHECKMARK (FIXED FULL VERSION) */
+        .checkmark-container {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 24px;
+        }
+
+        .checkmark-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
+            animation: scaleIn 0.5s ease-out;
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        .checkmark {
+            width: 60px;
+            height: 60px;
+            position: relative;
+        }
+
+        .checkmark::after {
+            content: '';
+            width: 20px;
+            height: 40px;
+            border: solid white;
+            border-width: 0 6px 6px 0;
+            position: absolute;
+            top: 5px;
+            left: 18px;
+            transform: rotate(45deg);
+            animation: drawCheck 0.3s ease-out 0.4s both;
+        }
+
+        @keyframes drawCheck {
+            from { height: 0; }
+            to { height: 40px; }
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #718096;
+            margin-bottom: 24px;
+        }
+
+        .message {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            color: #4a5568;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer-text {
+            font-size: 12px;
+            color: #a0aec0;
+        }
+
+        @media (max-width: 480px) {
+            .container { padding: 32px; }
+
+            h1 { font-size: 24px; }
+
+            .checkmark-container {
+                width: 100px;
+                height: 100px;
+            }
+
+            .checkmark-circle {
+                width: 100px;
+                height: 100px;
+            }
+
+            .checkmark {
+                width: 50px;
+                height: 50px;
+            }
+
+            .checkmark::after {
+                left: 15px;
+                top: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- MAIN GREEN CHECKMARK -->
+        <div class="checkmark-container">
+            <div class="checkmark-circle">
+                <div class="checkmark"></div>
+            </div>
+        </div>
+
+        <h1>You're All Set!</h1>
+        <p class="subtitle">Your email has been successfully verified</p>
+
+        <div class="message">
+            <p><strong>Thank you for verifying your email address!</strong><br><br>
+            Redirecting you back to the app...</p>
+        </div>
+
+        <div class="footer">
+            <p class="footer-text">FTC HUB - DECODE 2025-2026</p>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // Extract all URL parameters (both query string and hash fragment)
+            const urlParams = new URLSearchParams(window.location.search);
+            const hash = window.location.hash.substring(1); // Remove the #
+            const hashParams = new URLSearchParams(hash);
+            
+            // Build the deep link URL
+            let deepLink = 'ftchub://auth-callback';
+            const params = [];
+            
+            // Get all query parameters
+            for (const [key, value] of urlParams.entries()) {
+                params.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+            }
+            
+            // Get all hash fragment parameters (Supabase often puts tokens here)
+            for (const [key, value] of hashParams.entries()) {
+                params.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+            }
+            
+            // If we have parameters, append them
+            if (params.length > 0) {
+                deepLink += '?' + params.join('&');
+            } else if (hash) {
+                // If there's a hash but no params, append it directly
+                deepLink += '#' + hash;
+            }
+            
+            console.log('Redirecting to:', deepLink);
+            
+            // Try to open the app immediately
+            window.location.href = deepLink;
+            
+            // Fallback: If app doesn't open within 2 seconds, show instructions
+            setTimeout(function() {
+                const messageDiv = document.querySelector('.message');
+                if (messageDiv) {
+                    messageDiv.innerHTML = '<p><strong>Thank you for verifying your email address!</strong><br><br>If the app didn\'t open automatically, please return to the FTC HUB app and log in using your credentials.</p>';
+                }
+            }, 2000);
+        })();
+    </script>
+</body>
+</html>

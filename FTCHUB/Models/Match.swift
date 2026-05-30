@@ -22,6 +22,30 @@ struct Match: Codable, Identifiable {
     var ourScore: Int?
     var opponentScore: Int?
     var location: String?
+    
+    // Phase 1: Statistics calculation fields
+    var redAllianceScore: Int?
+    var blueAllianceScore: Int?
+    var eventName: String?
+    var seasonYear: Int?
+    var redTeam1: String?
+    var redTeam2: String?
+    var redTeam3: String?
+    var blueTeam1: String?
+    var blueTeam2: String?
+    var blueTeam3: String?
+    
+    // DEPRECATED (Phase 1): OCR fields - Scoreboard OCR feature removed
+    // These fields are kept for backward compatibility but are no longer used
+    var scoreSource: String?
+    var ocrConfidence: Double?
+    var ocrRawData: [String: String]? // JSONB stored as dictionary
+    var penaltiesRed: Int?
+    var penaltiesBlue: Int?
+    var scoreboardImageUrl: String?
+    var ocrProcessingTimeMs: Int?
+    var ocrVersion: String?
+    
     let createdAt: Date
     var updatedAt: Date
     
@@ -39,6 +63,24 @@ struct Match: Codable, Identifiable {
         case status
         case ourScore = "our_score"
         case opponentScore = "opponent_score"
+        case redAllianceScore = "red_alliance_score"
+        case blueAllianceScore = "blue_alliance_score"
+        case eventName = "event_name"
+        case seasonYear = "season_year"
+        case redTeam1 = "red_team1"
+        case redTeam2 = "red_team2"
+        case redTeam3 = "red_team3"
+        case blueTeam1 = "blue_team1"
+        case blueTeam2 = "blue_team2"
+        case blueTeam3 = "blue_team3"
+        case scoreSource = "score_source"
+        case ocrConfidence = "ocr_confidence"
+        case ocrRawData = "ocr_raw_data"
+        case penaltiesRed = "penalties_red"
+        case penaltiesBlue = "penalties_blue"
+        case scoreboardImageUrl = "scoreboard_image_url"
+        case ocrProcessingTimeMs = "ocr_processing_time_ms"
+        case ocrVersion = "ocr_version"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }

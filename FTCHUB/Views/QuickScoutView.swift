@@ -14,15 +14,23 @@ struct QuickScoutView: View {
     @State private var teamNumber: String = ""
     @State private var matchNumber: String = ""
     @State private var allianceColor: String = "Red"
-    @State private var autoRating: Int = 3
-    @State private var teleopRating: Int = 3
-    @State private var overallRating: Int = 3
-    @State private var quickNotes: String = ""
+    @State private var autoArtifacts: Int = 0
+    @State private var autoSuccess: Bool = false
+    @State private var teleopArtifacts: Int = 0
+    @State private var endgameSuccess: Bool = false
+    @State private var reliabilityFlag: ReliabilityFlag = .ok
+    @State private var selectedPenalties: Set<PenaltyType> = []
+    @State private var quickSummary: String = ""
     @State private var isSubmitting = false
     
     @FocusState private var isTeamNumberFocused: Bool
     
-    let recentTeams = ["12345", "54321", "99999"] // TODO: Load from recent reports
+    // Recent teams will be loaded from scouting service
+    var recentTeams: [String] {
+        // Load from recent scouting reports
+        // This will be populated from ScoutingService when available
+        []
+    }
     
     var body: some View {
         NavigationView {
@@ -107,37 +115,138 @@ struct QuickScoutView: View {
                     .cornerRadius(DesignSystem.CornerRadius.lg)
                     .shadow(color: DesignSystem.Colors.shadow, radius: 5, x: 0, y: 2)
                     
-                    // Quick Ratings
-                    VStack(spacing: DesignSystem.Spacing.lg) {
+                    // Match Performance
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        // Autonomous
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Text("Quick Ratings (1-5)")
+                            Text("Autonomous")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                             
-                            QuickRatingRow(label: "Autonomous", rating: $autoRating)
-                            QuickRatingRow(label: "Teleop", rating: $teleopRating)
-                            QuickRatingRow(label: "Overall", rating: $overallRating)
+                            HStack {
+                                Text("Artifacts:")
+                                    .font(.subheadline)
+                                    .foregroundColor(DesignSystem.Colors.textSecondary)
+                                
+                                Stepper(value: $autoArtifacts, in: 0...20) {
+                                    Text("\(autoArtifacts)")
+                                        .font(.headline)
+                                        .frame(width: 40)
+                                }
+                                
+                                Spacer()
+                                
+                                Toggle("Success", isOn: $autoSuccess)
+                                    .toggleStyle(.switch)
+                            }
                         }
                         .padding(DesignSystem.Spacing.md)
                         .background(DesignSystem.Colors.cardBackground)
                         .cornerRadius(DesignSystem.CornerRadius.lg)
                         .shadow(color: DesignSystem.Colors.shadow, radius: 5, x: 0, y: 2)
                         
-                        // Quick Notes
+                        // Teleop
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Text("Quick Notes")
+                            Text("Teleop")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                             
-                            TextEditor(text: $quickNotes)
-                                .frame(height: 80)
-                                .padding(8)
-                                .background(DesignSystem.Colors.tertiaryBackground)
-                                .cornerRadius(DesignSystem.CornerRadius.md)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
-                                        .stroke(DesignSystem.Colors.border, lineWidth: 1)
-                                )
+                            HStack {
+                                Text("Artifacts:")
+                                    .font(.subheadline)
+                                    .foregroundColor(DesignSystem.Colors.textSecondary)
+                                
+                                Stepper(value: $teleopArtifacts, in: 0...50) {
+                                    Text("\(teleopArtifacts)")
+                                        .font(.headline)
+                                        .frame(width: 40)
+                                }
+                                
+                                Spacer()
+                            }
+                        }
+                        .padding(DesignSystem.Spacing.md)
+                        .background(DesignSystem.Colors.cardBackground)
+                        .cornerRadius(DesignSystem.CornerRadius.lg)
+                        .shadow(color: DesignSystem.Colors.shadow, radius: 5, x: 0, y: 2)
+                        
+                        // Endgame
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                            Text("Endgame")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            Toggle("Park/Bonus Success", isOn: $endgameSuccess)
+                                .toggleStyle(.switch)
+                        }
+                        .padding(DesignSystem.Spacing.md)
+                        .background(DesignSystem.Colors.cardBackground)
+                        .cornerRadius(DesignSystem.CornerRadius.lg)
+                        .shadow(color: DesignSystem.Colors.shadow, radius: 5, x: 0, y: 2)
+                        
+                        // Reliability & Penalties
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                            Text("Reliability")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            Picker("Reliability", selection: $reliabilityFlag) {
+                                ForEach(ReliabilityFlag.allCases, id: \.self) { flag in
+                                    Text(flag.displayName).tag(flag)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            
+                            Divider()
+                                .padding(.vertical, DesignSystem.Spacing.xs)
+                            
+                            Text("Penalties")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DesignSystem.Spacing.xs) {
+                                ForEach(PenaltyType.allCases, id: \.self) { penalty in
+                                    Button {
+                                        if selectedPenalties.contains(penalty) {
+                                            selectedPenalties.remove(penalty)
+                                        } else {
+                                            selectedPenalties.insert(penalty)
+                                        }
+                                        let generator = UIImpactFeedbackGenerator(style: .light)
+                                        generator.impactOccurred()
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: selectedPenalties.contains(penalty) ? "checkmark.circle.fill" : "circle")
+                                            Text(penalty.displayName)
+                                                .font(.caption)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                        .background(selectedPenalties.contains(penalty) ? DesignSystem.Colors.primary.opacity(0.2) : DesignSystem.Colors.tertiaryBackground)
+                                        .foregroundColor(selectedPenalties.contains(penalty) ? DesignSystem.Colors.primary : DesignSystem.Colors.textPrimary)
+                                        .cornerRadius(DesignSystem.CornerRadius.sm)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(DesignSystem.Spacing.md)
+                        .background(DesignSystem.Colors.cardBackground)
+                        .cornerRadius(DesignSystem.CornerRadius.lg)
+                        .shadow(color: DesignSystem.Colors.shadow, radius: 5, x: 0, y: 2)
+                        
+                        // Quick Summary
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                            Text("One-Line Summary")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            Text("Best short summary for drive team")
+                                .font(.caption)
+                                .foregroundColor(DesignSystem.Colors.textSecondary)
+                            
+                            TextField("e.g., Fast scorer; endgame shaky; avoid continuous contact", text: $quickSummary, axis: .vertical)
+                                .textFieldStyle(CustomTextFieldStyle())
+                                .lineLimit(2...4)
                         }
                         .padding(DesignSystem.Spacing.md)
                         .background(DesignSystem.Colors.cardBackground)
@@ -213,16 +322,23 @@ struct QuickScoutView: View {
         isSubmitting = true
         defer { isSubmitting = false }
         
-        // Create minimal report data
+        // Create report data with essential fields
+        let penaltyTypesString = selectedPenalties.map { $0.rawValue }.joined(separator: ", ")
+        
         let reportData: [String: String] = [
             "Alliance Color": allianceColor,
-            "Quick Auto Rating": String(autoRating),
-            "Quick Teleop Rating": String(teleopRating),
-            "Quick Overall Rating": String(overallRating),
-            "Quick Notes": quickNotes
+            "Match Phase": MatchPhase.teleop.rawValue,
+            "Auto Artifacts": String(autoArtifacts),
+            "Auto Success": autoSuccess ? "true" : "false",
+            "Teleop Artifacts": String(teleopArtifacts),
+            "Endgame Success": endgameSuccess ? "true" : "false",
+            "Reliability Flag": reliabilityFlag.rawValue,
+            "Penalties": penaltyTypesString.isEmpty ? "None" : penaltyTypesString,
+            "Quick Summary": quickSummary
         ]
         
-        guard let teamId = UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11") else {
+        guard let teamId = scoutingService.currentTeamId else {
+            scoutingService.errorMessage = "Join or create a team before saving scouting reports."
             return
         }
         
@@ -236,7 +352,7 @@ struct QuickScoutView: View {
             phase: .teleop,
             scoutId: nil,
             reportData: reportData,
-            notes: quickNotes,
+            notes: quickSummary.isEmpty ? nil : quickSummary,
             createdAt: Date(),
             updatedAt: Date()
         )
@@ -248,13 +364,15 @@ struct QuickScoutView: View {
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
             
-            // Clear form for next match
-            teamNumber = ""
+            // Clear form for next match (keep team number for quick entry)
             matchNumber = ""
-            autoRating = 3
-            teleopRating = 3
-            overallRating = 3
-            quickNotes = ""
+            autoArtifacts = 0
+            autoSuccess = false
+            teleopArtifacts = 0
+            endgameSuccess = false
+            reliabilityFlag = .ok
+            selectedPenalties = []
+            quickSummary = ""
             
         } catch {
             // Error handling
@@ -262,36 +380,6 @@ struct QuickScoutView: View {
     }
 }
 
-struct QuickRatingRow: View {
-    let label: String
-    @Binding var rating: Int
-    
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.subheadline)
-                .foregroundColor(DesignSystem.Colors.textSecondary)
-                .frame(width: 100, alignment: .leading)
-            
-            HStack(spacing: 4) {
-                ForEach(1...5, id: \.self) { index in
-                    Button {
-                        rating = index
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
-                    } label: {
-                        Image(systemName: index <= rating ? "star.fill" : "star")
-                            .foregroundColor(index <= rating ? .yellow : .gray)
-                            .font(.title2)
-                    }
-                }
-            }
-            
-            Spacer()
-        }
-        .padding(.vertical, 4)
-    }
-}
 
 #Preview {
     QuickScoutView()

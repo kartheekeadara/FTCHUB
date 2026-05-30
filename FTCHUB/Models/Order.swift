@@ -16,7 +16,13 @@ struct Order: Identifiable, Codable, Hashable {
     var orderDate: Date
     var status: OrderStatus
     var notes: String?
-    var receiptUrl: String?
+    var receiptUrl: String? // Legacy single receipt URL (for backward compatibility)
+    var receiptUrls: [String]? // Array of receipt URLs (new)
+    var budgetId: UUID? // Link to specific budget
+    var budgetCategoryId: UUID? // Link to budget category (references category ID within budget JSONB)
+    var expectedDeliveryDate: Date? // Expected delivery date
+    var actualDeliveryDate: Date? // Actual delivery date
+    var orderItems: [OrderItem]? // Line items for this order
     var createdBy: UUID?
     let createdAt: Date
     var updatedAt: Date
@@ -31,6 +37,12 @@ struct Order: Identifiable, Codable, Hashable {
         case status
         case notes
         case receiptUrl = "receipt_url"
+        case receiptUrls = "receipt_urls"
+        case budgetId = "budget_id"
+        case budgetCategoryId = "budget_category_id"
+        case expectedDeliveryDate = "expected_delivery_date"
+        case actualDeliveryDate = "actual_delivery_date"
+        case orderItems = "order_items" // Note: This is loaded separately, not stored in orders table
         case createdBy = "created_by"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -43,6 +55,51 @@ struct Order: Identifiable, Codable, Hashable {
     
     var vendorName: String {
         return vendor ?? "Unknown Vendor"
+    }
+    
+    // Get all receipt URLs (combines legacy and new format)
+    var allReceiptUrls: [String] {
+        var urls: [String] = []
+        if let legacyUrl = receiptUrl, !legacyUrl.isEmpty {
+            urls.append(legacyUrl)
+        }
+        if let newUrls = receiptUrls {
+            urls.append(contentsOf: newUrls)
+        }
+        return urls
+    }
+    
+    // Check if order has any receipts
+    var hasReceipts: Bool {
+        return !allReceiptUrls.isEmpty
+    }
+    
+    // Check if order is overdue (has expected delivery date but not received)
+    var isOverdue: Bool {
+        guard let expectedDate = expectedDeliveryDate,
+              actualDeliveryDate == nil,
+              status != .received,
+              status != .cancelled else {
+            return false
+        }
+        return Date() > expectedDate
+    }
+    
+    // Calculate total from line items if available
+    var calculatedTotalFromItems: Decimal? {
+        guard let items = orderItems, !items.isEmpty else { return nil }
+        return items.reduce(Decimal(0)) { $0 + $1.totalPrice }
+    }
+    
+    // Check if order total matches line items total
+    var totalMatchesItems: Bool {
+        guard let calculatedTotal = calculatedTotalFromItems else { return true } // No items means it's fine
+        return abs(totalAmount - calculatedTotal) < Decimal(0.01)
+    }
+    
+    // Get line items count
+    var itemCount: Int {
+        orderItems?.count ?? 0
     }
 }
 
@@ -80,65 +137,3 @@ enum OrderStatus: String, Codable, CaseIterable {
     }
 }
 
-// MARK: - Sample Data
-extension Order {
-    static let sample = Order(
-        id: UUID(),
-        teamId: UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")!,
-        orderNumber: "ORD-001",
-        vendor: "REV Robotics",
-        totalAmount: 450.00,
-        orderDate: Date(),
-        status: .received,
-        notes: "Ordered new sensors and motors",
-        receiptUrl: nil,
-        createdBy: nil,
-        createdAt: Date(),
-        updatedAt: Date()
-    )
-    
-    static let sampleOrders = [
-        Order(
-            id: UUID(),
-            teamId: UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")!,
-            orderNumber: "ORD-001",
-            vendor: "REV Robotics",
-            totalAmount: 450.00,
-            orderDate: Date(),
-            status: .received,
-            notes: "Ordered new sensors and motors",
-            receiptUrl: nil,
-            createdBy: nil,
-            createdAt: Date(),
-            updatedAt: Date()
-        ),
-        Order(
-            id: UUID(),
-            teamId: UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")!,
-            orderNumber: "ORD-002",
-            vendor: "Amazon",
-            totalAmount: 125.50,
-            orderDate: Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date(),
-            status: .ordered,
-            notes: "Tubing and connectors",
-            receiptUrl: nil,
-            createdBy: nil,
-            createdAt: Date(),
-            updatedAt: Date()
-        ),
-        Order(
-            id: UUID(),
-            teamId: UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")!,
-            orderNumber: "ORD-003",
-            vendor: "TETRIX",
-            totalAmount: 89.99,
-            orderDate: Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date(),
-            status: .pending,
-            notes: "Wheels and bearings",
-            receiptUrl: nil,
-            createdBy: nil,
-            createdAt: Date(),
-            updatedAt: Date()
-        )
-    ]
-}

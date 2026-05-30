@@ -1,0 +1,59 @@
+[
+  {
+    "id": "robot-design-basics",
+    "title": "Robot Design & Mechanisms",
+    "description": "Master the fundamentals of robot design, drivetrains, linear motion, intakes, and design tradeoffs.",
+    "category": "technical",
+    "difficulty": "beginner",
+    "estimatedTime": 45,
+    "icon": "gearshape.2.fill",
+    "sections": [
+      {
+        "title": "Drivetrains & Movement",
+        "content": [
+          {
+            "type": "conceptCard",
+            "title": "Drivetrain Basics",
+            "summary": "The drivetrain is the foundation of robot mobility. Understanding different types helps you choose the right one for your game strategy.",
+            "detailedExplanation": "The drivetrain is arguably the most important part of your robot. It determines how your robot moves, turns, and navigates the field. There are several types of drivetrains, each with unique characteristics:\n\n**Tank Drive (Skid-Steer)**\n- Simple and reliable\n- Good pushing power\n- Easy to program\n- Limited maneuverability\n- Best for: Beginners, games requiring pushing power\n\n**Mecanum Drive**\n- Holonomic movement (forward, backward, sideways, rotation)\n- Excellent maneuverability\n- Requires precise control\n- More complex programming\n- Best for: Advanced teams, games requiring precise positioning",
+            "relatedConcepts": ["Linear Motion Systems", "Power Transmission", "Motor Selection"]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "programming-basics",
+    "title": "FTC Programming Basics",
+    "description": "Learn the fundamentals of FTC programming with Blocks and Java, from setup to your first autonomous program.",
+    "category": "programming",
+    "difficulty": "beginner",
+    "estimatedTime": 60,
+    "icon": "laptopcomputer",
+    "sections": [
+      {
+        "title": "Getting Started",
+        "content": [
+          {
+            "type": "text",
+            "content": "Welcome to FTC Programming! This module will guide you through setting up your development environment and writing your first program."
+          },
+          {
+            "type": "quiz",
+            "question": "What programming languages are supported in FTC?",
+            "options": [
+              "Blocks only",
+              "Java only",
+              "Both Blocks and Java",
+              "Python"
+            ],
+            "correctAnswer": 2,
+            "explanation": "FTC supports both Blocks (visual programming) and Java (text-based programming). Teams can choose based on their experience level."
+          }
+        ]
+      }
+    ]
+  }
+]
+
+

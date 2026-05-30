@@ -31,22 +31,58 @@ struct EditScoutingSectionView: View {
             
             Section("Fields") {
                 if section.fields.isEmpty {
-                    VStack(spacing: DesignSystem.Spacing.md) {
-                        Image(systemName: "list.bullet")
-                            .font(.system(size: 30))
-                            .foregroundColor(DesignSystem.Colors.textSecondary)
-                        
-                        Text("No fields yet")
-                            .font(.subheadline)
-                            .foregroundColor(DesignSystem.Colors.textSecondary)
-                        
-                        Button("Add First Field") {
-                            showingAddField = true
+                    VStack(spacing: DesignSystem.Spacing.lg) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            DesignSystem.Colors.primary.opacity(0.15),
+                                            DesignSystem.Colors.primary.opacity(0.05)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 80, height: 80)
+                            
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 36, weight: .medium))
+                                .foregroundStyle(DesignSystem.Gradients.primary)
                         }
-                        .primaryButtonStyle()
+                        
+                        VStack(spacing: DesignSystem.Spacing.xs) {
+                            Text("No fields yet")
+                                .font(.headline)
+                                .foregroundColor(DesignSystem.Colors.textPrimary)
+                            
+                            Text("Add your first field to start building this section")
+                                .font(.subheadline)
+                                .foregroundColor(DesignSystem.Colors.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        
+                        Button {
+                            showingAddField = true
+                        } label: {
+                            HStack(spacing: DesignSystem.Spacing.sm) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Add First Field")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DesignSystem.Spacing.md)
+                            .background(DesignSystem.Gradients.primary)
+                            .cornerRadius(DesignSystem.CornerRadius.md)
+                            .shadow(color: DesignSystem.Colors.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                     .frame(maxWidth: .infinity)
-                    .padding()
+                    .padding(.vertical, DesignSystem.Spacing.xl)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
                 } else {
                     ForEach(section.fields) { field in
                         ScoutingFieldRow(field: field)

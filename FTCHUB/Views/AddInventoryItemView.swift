@@ -29,116 +29,209 @@ struct AddInventoryItemView: View {
     private let categories = ["Electronics", "Mechanical", "Tools", "Sensors", "Motors", "Wheels", "Other"]
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: DesignSystem.Spacing.lg) {
-                    // Header
-                    VStack(spacing: DesignSystem.Spacing.md) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 60))
-                            .foregroundStyle(DesignSystem.Gradients.primary)
-                        
-                        Text("Add New Item")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        Text("Add a new item to your inventory")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.top, DesignSystem.Spacing.lg)
-                    
-                    // Form
-                    VStack(spacing: DesignSystem.Spacing.lg) {
-                        // Basic Information
-                        FormSection(title: "Basic Information", icon: "info.circle") {
-                            VStack(spacing: DesignSystem.Spacing.md) {
-                                CustomTextField(
-                                    title: "Item Name *",
-                                    text: $name,
-                                    placeholder: "e.g., Rev Robotics Expansion Hub"
-                                )
+        NavigationStack {
+            GeometryReader { geometry in
+                ScrollView {
+                    if geometry.size.width > geometry.size.height {
+                        // Landscape: Two column layout
+                        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                            VStack(spacing: DesignSystem.Spacing.lg) {
+                                // Header
+                                headerSection
                                 
-                                CustomTextField(
-                                    title: "SKU *",
-                                    text: $sku,
-                                    placeholder: "e.g., FTC-001"
-                                )
-                                
-                                CustomTextField(
-                                    title: "Manufacturer",
-                                    text: $manufacturer,
-                                    placeholder: "e.g., REV Robotics"
-                                )
-                                
-                                CustomTextField(
-                                    title: "Part Number",
-                                    text: $partNumber,
-                                    placeholder: "e.g., REV-31-1153"
-                                )
-                            }
-                        }
-                        
-                        // Category and Location
-                        FormSection(title: "Organization", icon: "folder") {
-                            VStack(spacing: DesignSystem.Spacing.md) {
-                                CategoryPicker(selectedCategory: $category, categories: categories)
-                                
-                                CustomTextField(
-                                    title: "Location",
-                                    text: $location,
-                                    placeholder: "e.g., Robot Cart, Parts Bin A"
-                                )
-                            }
-                        }
-                        
-                        // Stock Information
-                        FormSection(title: "Stock Information", icon: "cube.box") {
-                            VStack(spacing: DesignSystem.Spacing.md) {
-                                HStack(spacing: DesignSystem.Spacing.md) {
-                                    CustomTextField(
-                                        title: "Quantity on Hand *",
-                                        text: $quantityOnHand,
-                                        placeholder: "0"
-                                    )
-                                    .keyboardType(.numberPad)
-                                    
-                                    CustomTextField(
-                                        title: "Low Stock Threshold",
-                                        text: $lowStockThreshold,
-                                        placeholder: "1"
-                                    )
-                                    .keyboardType(.numberPad)
+                                // Basic Information
+                                FormSection(title: "Basic Information", icon: "info.circle") {
+                                    VStack(spacing: DesignSystem.Spacing.md) {
+                                        CustomTextField(
+                                            title: "Item Name *",
+                                            text: $name,
+                                            placeholder: "e.g., Rev Robotics Expansion Hub"
+                                        )
+                                        
+                                        CustomTextField(
+                                            title: "SKU *",
+                                            text: $sku,
+                                            placeholder: "e.g., FTC-001"
+                                        )
+                                        
+                                        CustomTextField(
+                                            title: "Manufacturer",
+                                            text: $manufacturer,
+                                            placeholder: "e.g., REV Robotics"
+                                        )
+                                        
+                                        CustomTextField(
+                                            title: "Part Number",
+                                            text: $partNumber,
+                                            placeholder: "e.g., REV-31-1153"
+                                        )
+                                    }
                                 }
                                 
-                                CustomTextField(
-                                    title: "Unit Cost",
-                                    text: $unitCost,
-                                    placeholder: "0.00"
-                                )
-                                .keyboardType(.decimalPad)
+                                // Stock Information
+                                FormSection(title: "Stock Information", icon: "cube.box") {
+                                    VStack(spacing: DesignSystem.Spacing.md) {
+                                        HStack(spacing: DesignSystem.Spacing.md) {
+                                            CustomTextField(
+                                                title: "Quantity on Hand *",
+                                                text: $quantityOnHand,
+                                                placeholder: "0"
+                                            )
+                                            .keyboardType(.numberPad)
+                                            
+                                            CustomTextField(
+                                                title: "Low Stock Threshold",
+                                                text: $lowStockThreshold,
+                                                placeholder: "1"
+                                            )
+                                            .keyboardType(.numberPad)
+                                        }
+                                        
+                                        CustomTextField(
+                                            title: "Unit Cost",
+                                            text: $unitCost,
+                                            placeholder: "0.00"
+                                        )
+                                        .keyboardType(.decimalPad)
+                                    }
+                                }
                             }
-                        }
-                        
-                        // Additional Information
-                        FormSection(title: "Additional Information", icon: "doc.text") {
-                            VStack(spacing: DesignSystem.Spacing.md) {
-                                CustomTextField(
-                                    title: "Description",
-                                    text: $description,
-                                    placeholder: "Brief description of the item",
-                                    isMultiline: true
-                                )
+                            .frame(maxWidth: .infinity)
+                            
+                            VStack(spacing: DesignSystem.Spacing.lg) {
+                                // Category and Location
+                                FormSection(title: "Organization", icon: "folder") {
+                                    VStack(spacing: DesignSystem.Spacing.md) {
+                                        CategoryPicker(selectedCategory: $category, categories: categories)
+                                        
+                                        CustomTextField(
+                                            title: "Location",
+                                            text: $location,
+                                            placeholder: "e.g., Robot Cart, Parts Bin A"
+                                        )
+                                    }
+                                }
                                 
-                                CustomTextField(
-                                    title: "Image URL",
-                                    text: $imageUrl,
-                                    placeholder: "https://example.com/image.jpg"
-                                )
+                                // Additional Information
+                                FormSection(title: "Additional Information", icon: "doc.text") {
+                                    VStack(spacing: DesignSystem.Spacing.md) {
+                                        CustomTextField(
+                                            title: "Description",
+                                            text: $description,
+                                            placeholder: "Brief description of the item",
+                                            isMultiline: true
+                                        )
+                                        
+                                        CustomTextField(
+                                            title: "Image URL",
+                                            text: $imageUrl,
+                                            placeholder: "https://example.com/image.jpg"
+                                        )
+                                    }
+                                }
                             }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .padding(DesignSystem.Spacing.md)
+                    } else {
+                        // Portrait: Single column layout
+                        VStack(spacing: DesignSystem.Spacing.lg) {
+                            // Header
+                            headerSection
+                            
+                            // Form
+                            VStack(spacing: DesignSystem.Spacing.lg) {
+                                // Basic Information
+                                FormSection(title: "Basic Information", icon: "info.circle") {
+                                    VStack(spacing: DesignSystem.Spacing.md) {
+                                        CustomTextField(
+                                            title: "Item Name *",
+                                            text: $name,
+                                            placeholder: "e.g., Rev Robotics Expansion Hub"
+                                        )
+                                        
+                                        CustomTextField(
+                                            title: "SKU *",
+                                            text: $sku,
+                                            placeholder: "e.g., FTC-001"
+                                        )
+                                        
+                                        CustomTextField(
+                                            title: "Manufacturer",
+                                            text: $manufacturer,
+                                            placeholder: "e.g., REV Robotics"
+                                        )
+                                        
+                                        CustomTextField(
+                                            title: "Part Number",
+                                            text: $partNumber,
+                                            placeholder: "e.g., REV-31-1153"
+                                        )
+                                    }
+                                }
+                                
+                                // Category and Location
+                                FormSection(title: "Organization", icon: "folder") {
+                                    VStack(spacing: DesignSystem.Spacing.md) {
+                                        CategoryPicker(selectedCategory: $category, categories: categories)
+                                        
+                                        CustomTextField(
+                                            title: "Location",
+                                            text: $location,
+                                            placeholder: "e.g., Robot Cart, Parts Bin A"
+                                        )
+                                    }
+                                }
+                                
+                                // Stock Information
+                                FormSection(title: "Stock Information", icon: "cube.box") {
+                                    VStack(spacing: DesignSystem.Spacing.md) {
+                                        HStack(spacing: DesignSystem.Spacing.md) {
+                                            CustomTextField(
+                                                title: "Quantity on Hand *",
+                                                text: $quantityOnHand,
+                                                placeholder: "0"
+                                            )
+                                            .keyboardType(.numberPad)
+                                            
+                                            CustomTextField(
+                                                title: "Low Stock Threshold",
+                                                text: $lowStockThreshold,
+                                                placeholder: "1"
+                                            )
+                                            .keyboardType(.numberPad)
+                                        }
+                                        
+                                        CustomTextField(
+                                            title: "Unit Cost",
+                                            text: $unitCost,
+                                            placeholder: "0.00"
+                                        )
+                                        .keyboardType(.decimalPad)
+                                    }
+                                }
+                                
+                                // Additional Information
+                                FormSection(title: "Additional Information", icon: "doc.text") {
+                                    VStack(spacing: DesignSystem.Spacing.md) {
+                                        CustomTextField(
+                                            title: "Description",
+                                            text: $description,
+                                            placeholder: "Brief description of the item",
+                                            isMultiline: true
+                                        )
+                                        
+                                        CustomTextField(
+                                            title: "Image URL",
+                                            text: $imageUrl,
+                                            placeholder: "https://example.com/image.jpg"
+                                        )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, DesignSystem.Spacing.md)
                         }
                     }
-                    .padding(.horizontal, DesignSystem.Spacing.md)
                 }
             }
             .navigationTitle("Add Item")
@@ -166,16 +259,38 @@ struct AddInventoryItemView: View {
         }
     }
     
+    private var headerSection: some View {
+        VStack(spacing: DesignSystem.Spacing.md) {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 60))
+                .foregroundStyle(DesignSystem.Gradients.primary)
+            
+            Text("Add New Item")
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Text("Add a new item to your inventory")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding(.top, DesignSystem.Spacing.lg)
+    }
+    
     private var isFormValid: Bool {
         !name.isEmpty && !sku.isEmpty && !quantityOnHand.isEmpty
     }
     
     private func saveItem() {
         guard isFormValid else { return }
+        guard let teamId = inventoryService.currentTeamId else {
+            errorMessage = "Join or create a team before adding inventory items."
+            showingError = true
+            return
+        }
         
         let newItem = InventoryItem(
             id: UUID(),
-            teamId: UUID(uuidString: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")!, // TODO: Get from AuthService
+            teamId: teamId,
             sku: sku,
             name: name,
             manufacturer: manufacturer.isEmpty ? nil : manufacturer,

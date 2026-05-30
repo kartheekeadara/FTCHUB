@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Vendor: Identifiable, Codable {
+struct Vendor: Identifiable, Codable, Hashable {
     let id: UUID
     let teamId: UUID
     let name: String
@@ -17,57 +17,82 @@ struct Vendor: Identifiable, Codable {
     let website: String?
     let address: String?
     let notes: String?
+    var rating: Int? // 1-5 stars
+    var averageDeliveryDays: Double? // Average delivery time in days
+    var totalOrders: Int
+    var totalSpent: Decimal
     let createdAt: Date
     let updatedAt: Date
     
     enum CodingKeys: String, CodingKey {
-        case id, name, email, phone, website, address, notes
+        case id, name, email, phone, website, address, notes, rating
         case teamId = "team_id"
         case contactPerson = "contact_person"
+        case averageDeliveryDays = "average_delivery_days"
+        case totalOrders = "total_orders"
+        case totalSpent = "total_spent"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
     
-    static let sampleVendors: [Vendor] = [
-        Vendor(
-            id: UUID(),
-            teamId: UUID(),
-            name: "REV Robotics",
-            contactPerson: "Sales Team",
-            email: "sales@revrobotics.com",
-            phone: "(512) 555-0100",
-            website: "https://www.revrobotics.com",
-            address: "Austin, TX",
-            notes: "Primary parts supplier",
-            createdAt: Date().addingTimeInterval(-86400 * 60),
-            updatedAt: Date()
-        ),
-        Vendor(
-            id: UUID(),
-            teamId: UUID(),
-            name: "TETRIX",
-            contactPerson: "Customer Service",
-            email: "support@tetrix.com",
-            phone: "(800) 555-0200",
-            website: "https://www.pitsco.com/tetrix",
-            address: "Pittsburg, KS",
-            notes: "Alternative parts supplier",
-            createdAt: Date().addingTimeInterval(-86400 * 45),
-            updatedAt: Date()
-        ),
-        Vendor(
-            id: UUID(),
-            teamId: UUID(),
-            name: "Local Hardware Store",
-            contactPerson: "John Smith",
-            email: "john@hardware.com",
-            phone: "(555) 123-4567",
-            website: nil,
-            address: "123 Main St, Local City",
-            notes: "Quick local purchases",
-            createdAt: Date().addingTimeInterval(-86400 * 30),
-            updatedAt: Date()
-        )
-    ]
+    // Computed properties
+    var displayRating: String {
+        guard let rating = rating else { return "No rating" }
+        return String(repeating: "", count: rating) + String(repeating: "", count: 5 - rating)
+    }
+    
+    var hasRating: Bool {
+        rating != nil
+    }
+    
+    var averageDeliveryText: String {
+        guard let days = averageDeliveryDays else { return "N/A" }
+        if days < 1 {
+            return "< 1 day"
+        } else if days < 2 {
+            return "~1 day"
+        } else {
+            return "~\(Int(days)) days"
+        }
+    }
+    
+    var formattedTotalSpent: String {
+        String(format: "$%.2f", totalSpent as NSDecimalNumber)
+    }
+    
+    init(
+        id: UUID = UUID(),
+        teamId: UUID,
+        name: String,
+        contactPerson: String? = nil,
+        email: String? = nil,
+        phone: String? = nil,
+        website: String? = nil,
+        address: String? = nil,
+        notes: String? = nil,
+        rating: Int? = nil,
+        averageDeliveryDays: Double? = nil,
+        totalOrders: Int = 0,
+        totalSpent: Decimal = 0,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.teamId = teamId
+        self.name = name
+        self.contactPerson = contactPerson
+        self.email = email
+        self.phone = phone
+        self.website = website
+        self.address = address
+        self.notes = notes
+        self.rating = rating
+        self.averageDeliveryDays = averageDeliveryDays
+        self.totalOrders = totalOrders
+        self.totalSpent = totalSpent
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+    
 }
 

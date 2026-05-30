@@ -9,6 +9,8 @@ import SwiftUI
 import UIKit
 
 struct SeasonEngineeringView: View {
+    var embedsNavigationStack: Bool = true
+    
     @EnvironmentObject var session: SeasonWorkspaceSession
     @EnvironmentObject var teamService: TeamService
     @State private var selectedTab = 0
@@ -16,18 +18,23 @@ struct SeasonEngineeringView: View {
     @State private var showRubricSheet = false
     @State private var showTOCSheet = false
     @State private var shareExportPayload: ShareExportPayload?
-    
-    init() {
-        let appearance = UISegmentedControl.appearance()
-        appearance.selectedSegmentTintColor = UIColor(red: 0.17, green: 0.17, blue: 0.18, alpha: 1.0)
-        appearance.backgroundColor = UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1.0)
-        appearance.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
-        appearance.setTitleTextAttributes([.foregroundColor: UIColor.systemGray], for: .normal)
-    }
+    @State private var exportErrorMessage: String?
     
     var body: some View {
+        Group {
+            if embedsNavigationStack {
+                NavigationStack {
+                    engineeringContent
+                }
+            } else {
+                engineeringContent
+            }
+        }
+    }
+    
+    private var engineeringContent: some View {
         engineeringRoot
-            .background(DesignSystem.Colors.background.ignoresSafeArea())
+            .background(NotebookPalette.background.ignoresSafeArea())
             .ftchubRootNavHeader(title: "Engineering Notebook")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -47,14 +54,9 @@ struct SeasonEngineeringView: View {
                             }
                             Divider()
                             Button {
-                                exportNotebookMarkdown()
-                            } label: {
-                                Label("Export Markdown", systemImage: "doc.text")
-                            }
-                            Button {
                                 exportNotebookPDF()
                             } label: {
-                                Label("Export PDF", systemImage: "doc.text.fill")
+                                Label("Export PDF", systemImage: "doc.richtext")
                             }
                         } label: {
                             Image(systemName: "square.and.arrow.up")
@@ -71,61 +73,163 @@ struct SeasonEngineeringView: View {
             .sheet(item: $shareExportPayload) { payload in
                 ActivityView(activityItems: payload.items)
             }
-    }
-    
-    private func exportNotebookMarkdown() {
-        let md = EngineeringNotebookExport.markdown(
-            teamNumber: teamService.currentTeam?.number,
-            notes: session.notebookStore.notes,
-            runs: session.notebookStore.runs,
-            rubric: session.notebookStore.rubricChecklist
-        )
-        TelemetryService.shared.logEvent("engineering_notebook_export_markdown")
-        shareExportPayload = ShareExportPayload(items: [md])
+            .alert("Export failed", isPresented: Binding(
+                get: { exportErrorMessage != nil },
+                set: { if !$0 { exportErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { exportErrorMessage = nil }
+            } message: {
+                Text(exportErrorMessage ?? "Unable to create export file.")
+            }
     }
     
     private func exportNotebookPDF() {
         guard let data = EngineeringNotebookExport.pdfData(
             teamNumber: teamService.currentTeam?.number,
             notes: session.notebookStore.notes,
-            runs: session.notebookStore.runs,
-            rubric: session.notebookStore.rubricChecklist
-        ) else { return }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("FTCHUB-notebook-\(UUID().uuidString).pdf")
+            runs: session.notebookStore.runs
+        ) else {
+            exportErrorMessage = "Could not generate PDF. Please try again."
+            return
+        }
+
+        let rawTeamNumber = teamService.currentTeam?.number ?? ""
+        let teamSlug = rawTeamNumber
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: " ", with: "-")
+        let safeTeamSlug = teamSlug.isEmpty ? "team" : teamSlug
+        let dateStamp = Date().formatted(.dateTime.year().month().day())
+        let fileName = "FTCHUB-\(safeTeamSlug)-engineering-notebook-\(dateStamp).pdf"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         do {
             try data.write(to: url)
             TelemetryService.shared.logEvent("engineering_notebook_export_pdf")
             shareExportPayload = ShareExportPayload(items: [url])
         } catch {
             TelemetryService.shared.logError(error, context: ["where": "engineering_notebook_pdf"])
+            exportErrorMessage = error.localizedDescription
         }
     }
     
     private var engineeringRoot: some View {
-        VStack(spacing: 0) {
-            Picker("", selection: $selectedTab) {
-                Text("Notebook").tag(0)
-                Text("Run log").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, DesignSystem.Spacing.md)
-            .padding(.top, DesignSystem.Spacing.sm)
-            .padding(.bottom, DesignSystem.Spacing.xs)
-            
+        Group {
             if selectedTab == 0 {
                 EngineeringNotebookTab(
                     store: session.notebookStore,
+                    selectedTab: $selectedTab,
                     searchText: $notebookSearchText
                 )
             } else {
-                ScrollView {
-                    VStack(spacing: DesignSystem.Spacing.lg) {
-                        RunLogTab(store: session.notebookStore)
-                    }
-                    .padding(.horizontal, DesignSystem.Spacing.md)
-                    .padding(.vertical, DesignSystem.Spacing.md)
-                }
+                EngineeringRunLogScrollTab(
+                    store: session.notebookStore,
+                    selectedTab: $selectedTab
+                )
             }
+        }
+    }
+}
+
+// MARK: - Palette
+
+enum NotebookPalette {
+    static let background = Color.black
+    static let cardSurface = Color(red: 0.11, green: 0.11, blue: 0.12)   // #1C1C1E
+    static let chipInactive = Color(red: 0.17, green: 0.17, blue: 0.18) // #2C2C2E
+    static let stroke = Color(red: 0.23, green: 0.23, blue: 0.24)       // #3A3A3C
+    static let textSecondary = Color(red: 0.56, green: 0.56, blue: 0.58)
+    static let textTertiary = Color(red: 0.45, green: 0.45, blue: 0.45)
+    static let accent = Color(red: 0.91, green: 0.64, blue: 0.35)       // #E8A45A
+    static let pass = Color(red: 0.19, green: 0.82, blue: 0.35)         // #30D158
+    static let fail = Color(red: 1.0, green: 0.27, blue: 0.23)          // #FF453A
+    
+    static func color(for kind: EngineeringNoteKind) -> Color {
+        switch kind {
+        case .designDecision: return Color(red: 0.91, green: 0.64, blue: 0.35) // #E8A45A
+        case .testSession:    return Color(red: 0.36, green: 0.61, blue: 0.84) // #5B9BD5
+        case .bug:            return Color(red: 0.88, green: 0.36, blue: 0.36) // #E05C5C
+        case .meeting:        return Color(red: 0.61, green: 0.45, blue: 0.82) // #9B72D0
+        case .other:          return Color(red: 0.56, green: 0.56, blue: 0.58) // #8E8E93
+        }
+    }
+}
+
+// MARK: - Sticky header components
+
+private struct NotebookSegmentControl: View {
+    @Binding var selected: Int
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            segment(title: "Notebook", index: 0)
+            segment(title: "Run log", index: 1)
+        }
+        .padding(4)
+        .background(NotebookPalette.chipInactive)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+    
+    private func segment(title: String, index: Int) -> some View {
+        let active = selected == index
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                selected = index
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(active ? .white : NotebookPalette.textSecondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(active ? NotebookPalette.accent : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct NotebookSearchField: View {
+    @Binding var text: String
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(NotebookPalette.textSecondary)
+            TextField("Search notes…", text: $text)
+                .foregroundColor(.white)
+                .textInputAutocapitalization(.sentences)
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(NotebookPalette.textSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+        .background(NotebookPalette.cardSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct EngineeringRunLogScrollTab: View {
+    @ObservedObject var store: EngineeringNotebookStore
+    @Binding var selectedTab: Int
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: DesignSystem.Spacing.lg) {
+                NotebookSegmentControl(selected: $selectedTab)
+                
+                RunLogTab(store: store)
+            }
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.top, DesignSystem.Spacing.sm)
+            .padding(.bottom, DesignSystem.Spacing.xl)
         }
     }
 }
@@ -134,31 +238,13 @@ struct SeasonEngineeringView: View {
 
 private struct EngineeringNotebookTab: View {
     @ObservedObject var store: EngineeringNotebookStore
+    @Binding var selectedTab: Int
     @Binding var searchText: String
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showAddSheet = false
-    @State private var selectedKind: EngineeringNoteKind = .designDecision
-    @State private var filterKind: EngineeringNoteKind?
-    /// 0 = all design phases; 1...n map to `EngineeringDesignPhase.allCases`.
-    @State private var phaseCarouselIndex: Int = 0
-    @State private var lastLoggedPhaseIndex: Int = 0
-    
-    private var effectivePhaseFilter: EngineeringDesignPhase? {
-        guard phaseCarouselIndex > 0 else { return nil }
-        let phases = EngineeringDesignPhase.allCases
-        let i = phaseCarouselIndex - 1
-        guard phases.indices.contains(i) else { return nil }
-        return phases[i]
-    }
+    @State private var showPlaybook = false
     
     private var filteredNotes: [EngineeringNote] {
         var notes = store.notes
-        if let filter = filterKind {
-            notes = notes.filter { $0.entryKind == filter }
-        }
-        if let phase = effectivePhaseFilter {
-            notes = notes.filter { $0.designPhase == phase }
-        }
         if !searchText.isEmpty {
             let query = searchText.lowercased()
             notes = notes.filter {
@@ -173,19 +259,10 @@ private struct EngineeringNotebookTab: View {
         return notes
     }
     
-    private var notesWithAuthorCount: Int {
-        filteredNotes.filter { !($0.authorStudent ?? "").isEmpty }.count
-    }
-    
-    private var notesWithLinkedRunCount: Int {
-        filteredNotes.filter { $0.linkedRunLogId != nil }.count
-    }
-    
     private var highlightNotes: [EngineeringNote] {
         Array(filteredNotes.sorted { $0.createdAt > $1.createdAt }.prefix(3))
     }
     
-    /// Newest days first; notes within a day newest-first.
     private var dayGroups: [(day: Date, notes: [EngineeringNote])] {
         let cal = Calendar.current
         var buckets: [Date: [EngineeringNote]] = [:]
@@ -199,66 +276,34 @@ private struct EngineeringNotebookTab: View {
         }
     }
     
-    @State private var showPlaybook = false
-    
     var body: some View {
-        VStack(spacing: 0) {
-            // Sticky header
-            VStack(spacing: DesignSystem.Spacing.md) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(Color(red: 0.39, green: 0.39, blue: 0.40))
-                    TextField("Search notes…", text: $searchText)
-                        .foregroundColor(DesignSystem.Colors.textPrimary)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color(red: 0.11, green: 0.11, blue: 0.12))
-                .cornerRadius(10)
-                .padding(.horizontal, DesignSystem.Spacing.md)
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+                NotebookSegmentControl(selected: $selectedTab)
                 
-                NotebookKindFilterChips(filterKind: $filterKind)
+                NotebookSearchField(text: $searchText)
                 
-                NotebookAddKindStrip(selectedKind: $selectedKind, showAddSheet: $showAddSheet)
+                NotebookDashboardHeroCard()
+                
+                NotebookHighlightsCard(notes: highlightNotes, store: store)
+                
+                NotebookNewEntryButton(showAddSheet: $showAddSheet)
+                
+                notebookEntriesCard
+                
+                playbookSection
             }
-            .padding(.bottom, DesignSystem.Spacing.md)
-            
-            ScrollView {
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                    NotebookDashboardHeroCard(
-                        store: store,
-                        phaseCarouselIndex: $phaseCarouselIndex,
-                        selectedPhase: effectivePhaseFilter
-                    )
-                    
-                    NotebookHighlightsCard(notes: highlightNotes, store: store)
-                    notebookEntriesCard
-                    
-                    playbookSection
-                }
-                .padding(.horizontal, DesignSystem.Spacing.md)
-                .padding(.bottom, DesignSystem.Spacing.md)
-            }
-        }
-        .onChange(of: phaseCarouselIndex) { _, newVal in
-            guard newVal != lastLoggedPhaseIndex else { return }
-            lastLoggedPhaseIndex = newVal
-            let key: String
-            if newVal == 0 { key = "all" }
-            else {
-                let phases = EngineeringDesignPhase.allCases
-                let i = newVal - 1
-                key = phases.indices.contains(i) ? phases[i].rawValue : "all"
-            }
-            TelemetryService.shared.logEvent("engineering_notebook_phase_filter", parameters: ["phase": key])
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.top, DesignSystem.Spacing.sm)
+            .padding(.bottom, DesignSystem.Spacing.xl)
         }
         .sheet(isPresented: $showAddSheet) {
-            AddEngineeringNoteSheet(store: store, initialKind: selectedKind)
+            AddEngineeringNoteSheet(store: store, initialKind: .designDecision)
         }
     }
     
     private var notebookEntriesCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Text("All Entries")
                     .font(.system(size: 17, weight: .semibold))
@@ -266,10 +311,8 @@ private struct EngineeringNotebookTab: View {
                 Spacer(minLength: 0)
                 Text("\(filteredNotes.count) shown")
                     .font(.system(size: 13))
-                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                    .foregroundColor(NotebookPalette.textSecondary)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
             
             if filteredNotes.isEmpty {
                 Group {
@@ -281,13 +324,15 @@ private struct EngineeringNotebookTab: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, DesignSystem.Spacing.lg)
+                .background(NotebookPalette.cardSurface)
+                .cornerRadius(12)
             } else {
                 VStack(spacing: 16) {
                     ForEach(Array(dayGroups.enumerated()), id: \.offset) { _, group in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(daySectionTitle(group.day))
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                                .foregroundColor(NotebookPalette.textSecondary)
                                 .textCase(.uppercase)
                                 .tracking(0.4)
                                 .padding(.top, 8)
@@ -299,6 +344,12 @@ private struct EngineeringNotebookTab: View {
                                     NotebookEntryCard(note: note)
                                 }
                                 .buttonStyle(.plain)
+                                
+                                if note.id != group.notes.last?.id {
+                                    Divider()
+                                        .background(NotebookPalette.stroke.opacity(0.5))
+                                        .padding(.leading, 52)
+                                }
                             }
                         }
                     }
@@ -315,38 +366,33 @@ private struct EngineeringNotebookTab: View {
     }
     
     private var notebookEmptyNoNotesView: some View {
-        VStack(spacing: DesignSystem.Spacing.md) {
-            Image(systemName: "doc.text")
-                .font(.largeTitle)
-                .foregroundColor(DesignSystem.Colors.textTertiary)
-            Text("No notes yet")
-                .font(.headline)
-                .foregroundColor(DesignSystem.Colors.textPrimary)
-            Text("Use the New entry strip above to add design decisions, tests, and bugs as they happen.")
-                .font(.caption)
-                .foregroundColor(DesignSystem.Colors.textSecondary)
+        VStack(spacing: 12) {
+            Text("No entries yet")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+            Text("Tap New Entry to log your first note.")
+                .font(.system(size: 13))
+                .foregroundColor(NotebookPalette.textSecondary)
                 .multilineTextAlignment(.center)
         }
-        .padding(DesignSystem.Spacing.xl)
+        .padding(DesignSystem.Spacing.lg)
     }
     
     private var notebookEmptyNoMatchView: some View {
-        VStack(spacing: DesignSystem.Spacing.md) {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .font(.largeTitle)
-                .foregroundColor(DesignSystem.Colors.textTertiary)
-            Text("No notes match")
-                .font(.headline)
-                .foregroundColor(DesignSystem.Colors.textPrimary)
-            Text("Try another phase or entry type, clear search, or add a new entry.")
-                .font(.caption)
-                .foregroundColor(DesignSystem.Colors.textSecondary)
+        VStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 40))
+                .foregroundColor(NotebookPalette.stroke)
+            Text("No entries match")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+            Text("Clear search or add a new entry.")
+                .font(.system(size: 13))
+                .foregroundColor(NotebookPalette.textSecondary)
                 .multilineTextAlignment(.center)
         }
-        .padding(DesignSystem.Spacing.xl)
+        .padding(DesignSystem.Spacing.lg)
     }
-    
-    // MARK: - Playbook guidance strip
     
     private var playbookSection: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -357,14 +403,14 @@ private struct EngineeringNotebookTab: View {
             } label: {
                 HStack {
                     Image(systemName: "lightbulb.fill")
-                        .foregroundColor(DesignSystem.Colors.primary)
+                        .foregroundColor(NotebookPalette.accent)
                     Text("What Judges Look For")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.white)
                     Spacer()
                     Image(systemName: showPlaybook ? "chevron.up" : "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                        .foregroundColor(NotebookPalette.textSecondary)
                 }
                 .padding(16)
             }
@@ -374,28 +420,22 @@ private struct EngineeringNotebookTab: View {
                 VStack(alignment: .leading, spacing: 12) {
                     playbookItem(
                         title: "Full design cycle",
-                        detail: "Problem → brainstorm → select → build → test → iterate. Document all stages, not just the final robot.",
-                        link: nil
+                        detail: "Problem → brainstorm → select → build → test → iterate. Document all stages."
                     )
                     playbookItem(
                         title: "Failures and pivots",
-                        detail: "What didn't work is as valuable as what did. Note why you changed direction.",
-                        link: nil
+                        detail: "What didn't work is as valuable as what did. Note why you changed direction."
                     )
                     playbookItem(
                         title: "Student-written entries",
-                        detail: "Judges look for student voice. Mentors guide but students document.",
-                        link: nil
+                        detail: "Judges look for student voice. Mentors guide but students document."
                     )
                     playbookItem(
                         title: "Testable hypotheses",
-                        detail: "\"If we lower intake speed by 20%, we expect fewer jams.\" Run log proves iteration.",
-                        link: nil
+                        detail: "\"If we lower intake speed by 20%, we expect fewer jams.\""
                     )
                     
-                    Divider()
-                        .background(Color(red: 0.23, green: 0.23, blue: 0.24))
-                        .padding(.vertical, 4)
+                    Divider().background(NotebookPalette.stroke).padding(.vertical, 4)
                     
                     HStack(spacing: 16) {
                         Link(destination: URL(string: "https://www.firstinspires.org/sites/default/files/uploads/resource_library/ftc/eng-notebook-self-assessment.pdf")!) {
@@ -412,206 +452,54 @@ private struct EngineeringNotebookTab: View {
                 .padding(.bottom, 16)
             }
         }
-        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
+        .background(NotebookPalette.cardSurface)
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(showPlaybook ? DesignSystem.Colors.primary : Color.clear, lineWidth: showPlaybook ? 1 : 0)
+                .strokeBorder(showPlaybook ? NotebookPalette.accent : Color.clear, lineWidth: showPlaybook ? 1 : 0)
         )
-        .overlay(
-            HStack {
-                if showPlaybook {
-                    Rectangle()
-                        .fill(DesignSystem.Colors.primary)
-                        .frame(width: 3)
-                    Spacer()
-                }
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
     
-    private func playbookItem(title: String, detail: String, link: URL?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .top, spacing: 8) {
-                Text("•")
+    private func playbookItem(title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•")
+                .font(.system(size: 14))
+                .foregroundColor(Color(red: 0.82, green: 0.82, blue: 0.84))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(red: 0.82, green: 0.82, blue: 0.84))
+                Text(detail)
                     .font(.system(size: 14))
                     .foregroundColor(Color(red: 0.82, green: 0.82, blue: 0.84))
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color(red: 0.82, green: 0.82, blue: 0.84))
-                    Text(detail)
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(red: 0.82, green: 0.82, blue: 0.84))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            if let link {
-                Link("Learn more", destination: link)
-                    .font(.system(size: 12, weight: .semibold))
-                    .padding(.leading, 16)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 }
 
-// MARK: - Notebook mockup-aligned components
+// MARK: - Radial hero
 
-private struct NotebookKindFilterChips: View {
-    @Binding var filterKind: EngineeringNoteKind?
+private struct EngineeringNotebookHeroImage: View {
+    var maxHeight: CGFloat = 180
     
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                filterChip(title: "All", selected: filterKind == nil) {
-                    filterKind = nil
-                }
-                ForEach(EngineeringNoteKind.allCases) { kind in
-                    filterChip(title: kind.shortName, selected: filterKind == kind) {
-                        filterKind = kind
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 4)
-        }
-        .mask(
-            HStack(spacing: 0) {
-                Color.black
-                LinearGradient(gradient: Gradient(colors: [.black, .clear]), startPoint: .leading, endPoint: .trailing)
-                    .frame(width: 24)
-            }
-        )
-    }
-    
-    private func filterChip(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(selected ? .white : DesignSystem.Colors.textPrimary)
-                .padding(.horizontal, 16)
-                .frame(height: 32)
-                .background(
-                    Capsule()
-                        .fill(selected ? DesignSystem.Colors.primary : Color(red: 0.17, green: 0.17, blue: 0.18))
-                )
-        }
-        .buttonStyle(NotebookSpringyButtonStyle())
-        .accessibilityLabel("Filter: \(title)")
+        Image("EngineeringNotebookHero")
+            .resizable()
+            .scaledToFit()
+            .frame(maxHeight: maxHeight)
+            .accessibilityHidden(true)
     }
 }
 
 private struct NotebookDashboardHeroCard: View {
-    @ObservedObject var store: EngineeringNotebookStore
-    @Binding var phaseCarouselIndex: Int
-    let selectedPhase: EngineeringDesignPhase?
-    
-    private var designCount: Int {
-        store.notes.filter { $0.entryKind == .designDecision }.count
-    }
-    
-    private var testCount: Int {
-        store.notes.filter { $0.entryKind == .testSession }.count
-    }
-    
-    private var buildCount: Int {
-        store.notes.filter { $0.designPhase == .createBuild }.count
-    }
-    
-    private var authorsCount: Int {
-        store.notes.filter { !($0.authorStudent ?? "").isEmpty }.count
-    }
-    
-    private var linkedRunsCount: Int {
-        store.notes.filter { $0.linkedRunLogId != nil }.count
-    }
-    
     var body: some View {
-        VStack(spacing: 24) {
-            // Top row
-            HStack {
-                Text("ENGINEERING NOTEBOOK")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.45))
-                    .tracking(1.2)
-                
-                Spacer()
-                
-                Menu {
-                    Button("All phases") { phaseCarouselIndex = 0 }
-                    ForEach(Array(EngineeringDesignPhase.allCases.enumerated()), id: \.element.id) { offset, phase in
-                        Button(phase.displayName) { phaseCarouselIndex = offset + 1 }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(selectedPhase?.displayName ?? "All Phases")
-                            .font(.caption.weight(.semibold))
-                        Image(systemName: "chevron.down")
-                            .font(.caption2.weight(.bold))
-                    }
-                    .foregroundColor(DesignSystem.Colors.primary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .strokeBorder(DesignSystem.Colors.primary.opacity(0.5), lineWidth: 1)
-                    )
-                }
-            }
-            
-            // Middle stats row
-            HStack(spacing: 0) {
-                statColumn(icon: "lightbulb.fill", label: "Design", count: designCount)
-                Divider()
-                    .background(Color(red: 0.23, green: 0.23, blue: 0.24))
-                    .padding(.vertical, 4)
-                statColumn(icon: "flask.fill", label: "Test", count: testCount)
-                Divider()
-                    .background(Color(red: 0.23, green: 0.23, blue: 0.24))
-                    .padding(.vertical, 4)
-                statColumn(icon: "wrench.and.screwdriver.fill", label: "Build", count: buildCount)
-            }
-            
-            // Bottom metadata row
-            VStack(spacing: 6) {
-                Text("\(store.notes.count) entries · \(authorsCount) authors · \(linkedRunsCount) test links")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                
-                Text("Every entry judges see builds your case.")
-                    .font(.system(size: 12))
-                    .italic()
-                    .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.45))
-            }
-        }
-        .padding(20)
-        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
-        .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color(red: 0.23, green: 0.23, blue: 0.24), lineWidth: 1)
-        )
-    }
-    
-    private func statColumn(icon: String, label: String, count: Int) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(DesignSystem.Colors.primary)
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-            Text("\(count)")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(.white)
-                .contentTransition(.numericText())
-                .animation(.snappy, value: count)
-        }
-        .frame(maxWidth: .infinity)
+        EngineeringNotebookHeroImage(maxHeight: 220)
+            .frame(maxWidth: .infinity)
     }
 }
+
+// MARK: - Ranked highlights
 
 private struct NotebookHighlightsCard: View {
     let notes: [EngineeringNote]
@@ -621,38 +509,41 @@ private struct NotebookHighlightsCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Notebook Highlights")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
                 Spacer()
-                Image(systemName: "arrow.up.right.square")
+                Image(systemName: "arrow.up.right")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                    .foregroundColor(NotebookPalette.textSecondary)
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 12)
             
-            if notes.isEmpty {
-                Text("Add 3+ entries to see your top highlights here.")
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-                    .frame(maxWidth: .infinity)
-            } else {
-                ForEach(Array(notes.enumerated()), id: \.1.id) { pair in
-                    NavigationLink {
-                        EngineeringNoteDetailView(note: pair.1, store: store)
-                    } label: {
-                        NotebookHighlightRow(rank: pair.0 + 1, note: pair.1)
+            VStack(spacing: 0) {
+                ForEach(0..<3, id: \.self) { index in
+                    if index < notes.count {
+                        NavigationLink {
+                            EngineeringNoteDetailView(note: notes[index], store: store)
+                        } label: {
+                            NotebookHighlightRow(rank: index + 1, note: notes[index])
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        NotebookHighlightEmptyRow(rank: index + 1, isFirst: index == 0 && notes.isEmpty)
                     }
-                    .buttonStyle(.plain)
+                    
+                    if index < 2 {
+                        Divider()
+                            .background(NotebookPalette.chipInactive)
+                            .padding(.leading, 16)
+                    }
                 }
             }
+            .padding(.bottom, 8)
         }
-        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
-        .cornerRadius(12)
+        .background(NotebookPalette.cardSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -660,42 +551,112 @@ private struct NotebookHighlightRow: View {
     let rank: Int
     let note: EngineeringNote
     
+    private var initials: String {
+        let s = (note.authorStudent ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return "" }
+        let parts = s.split(separator: " ")
+        if parts.count >= 2 {
+            let a = parts[0].first.map(String.init) ?? ""
+            let b = parts[1].first.map(String.init) ?? ""
+            return (a + b).uppercased()
+        }
+        return String(s.prefix(2)).uppercased()
+    }
+    
+    private var relativeTime: String {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
+        return f.localizedString(for: note.createdAt, relativeTo: Date())
+    }
+    
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(spacing: 12) {
             Text("#\(rank)")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                .frame(width: 24, alignment: .leading)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(NotebookPalette.textTertiary)
+                .frame(width: 28, alignment: .leading)
             
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(red: 0.91, green: 0.64, blue: 0.35).opacity(0.08))
-                .frame(width: 36, height: 36)
+                .fill(NotebookPalette.color(for: note.entryKind).opacity(0.18))
+                .frame(width: 56, height: 56)
                 .overlay(
                     Image(systemName: note.entryKind.icon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(Color(red: 0.91, green: 0.64, blue: 0.35))
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
                 )
             
-            Text(note.title)
-                .font(.system(size: 15))
-                .foregroundColor(.white)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(note.title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                Text("\(note.entryKind.shortName) · \(relativeTime)")
+                    .font(.system(size: 13))
+                    .foregroundColor(NotebookPalette.textSecondary)
+                    .lineLimit(1)
+            }
             
             Spacer(minLength: 8)
             
-            Text(note.entryKind.shortName)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(EngineeringNotebookKindPalette.color(for: note.entryKind))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(EngineeringNotebookKindPalette.color(for: note.entryKind).opacity(0.12))
-                .clipShape(Capsule())
+            if !initials.isEmpty {
+                Text(initials)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 24, height: 24)
+                    .background(Circle().fill(NotebookPalette.stroke))
+            } else {
+                Text("—")
+                    .font(.system(size: 13))
+                    .foregroundColor(NotebookPalette.textTertiary)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
     }
 }
+
+private struct NotebookHighlightEmptyRow: View {
+    let rank: Int
+    let isFirst: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("#\(rank)")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(NotebookPalette.textTertiary)
+                .frame(width: 28, alignment: .leading)
+            
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(
+                    NotebookPalette.stroke,
+                    style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                )
+                .frame(width: 56, height: 56)
+            
+            VStack(alignment: .leading, spacing: 3) {
+                Text(isFirst ? "Add your first entry" : "·····")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(isFirst ? Color(red: 0.82, green: 0.82, blue: 0.84) : NotebookPalette.textTertiary)
+                    .lineLimit(1)
+                Text(isFirst ? "Tap + New Entry below" : "·····")
+                    .font(.system(size: 13))
+                    .foregroundColor(NotebookPalette.textTertiary)
+                    .lineLimit(1)
+            }
+            
+            Spacer(minLength: 8)
+            
+            Text("—")
+                .font(.system(size: 13))
+                .foregroundColor(NotebookPalette.textTertiary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - Entry card
 
 private struct NotebookEntryCard: View {
     let note: EngineeringNote
@@ -713,122 +674,91 @@ private struct NotebookEntryCard: View {
     }
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Left accent strip
-            Rectangle()
-                .fill(EngineeringNotebookKindPalette.color(for: note.entryKind))
-                .frame(width: 3)
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(NotebookPalette.color(for: note.entryKind).opacity(0.15))
+                .frame(width: 40, height: 40)
+                .overlay(
+                    Image(systemName: note.entryKind.icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(NotebookPalette.color(for: note.entryKind))
+                )
             
-            VStack(alignment: .leading, spacing: 8) {
-                // Title row
-                HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
                     Text(note.title)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                    
-                    Spacer()
-                    
+                    Spacer(minLength: 6)
                     Text(note.createdAt.formatted(date: .omitted, time: .shortened))
                         .font(.system(size: 12))
-                        .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                        .foregroundColor(NotebookPalette.textTertiary)
                 }
                 
-                // Second row: type chip + author initials
                 HStack(spacing: 8) {
                     Text(note.entryKind.shortName)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(EngineeringNotebookKindPalette.color(for: note.entryKind))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(NotebookPalette.color(for: note.entryKind))
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(EngineeringNotebookKindPalette.color(for: note.entryKind).opacity(0.12))
-                        .clipShape(Capsule())
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(NotebookPalette.color(for: note.entryKind).opacity(0.15))
+                        )
                     
-                    if note.authorStudent != nil && !note.authorStudent!.isEmpty {
+                    if let a = note.authorStudent, !a.isEmpty {
                         Text(initials)
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
-                            .background(Color(red: 0.23, green: 0.23, blue: 0.24))
-                            .clipShape(Capsule())
+                            .foregroundColor(.white)
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(NotebookPalette.stroke))
                     }
                 }
                 
-                // Third row: one-line preview
-                Text(note.body)
-                    .font(.system(size: 13))
-                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                    .lineLimit(1)
+                if !note.body.isEmpty {
+                    Text(note.body)
+                        .font(.system(size: 13))
+                        .foregroundColor(NotebookPalette.textSecondary)
+                        .lineLimit(1)
+                }
             }
-            .padding(12)
         }
-        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
-        .cornerRadius(12)
+        .padding(12)
+        .padding(.leading, 3)
+        .background(
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(NotebookPalette.color(for: note.entryKind))
+                    .frame(width: 3)
+                NotebookPalette.cardSurface
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
-private struct NotebookAddKindStrip: View {
-    @Binding var selectedKind: EngineeringNoteKind
+// MARK: - New Entry button
+
+private struct NotebookNewEntryButton: View {
     @Binding var showAddSheet: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("NEW ENTRY")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.45))
-                .tracking(1.2)
-                .padding(.horizontal, 16)
-            
-            Button {
-                selectedKind = .designDecision
-                showAddSheet = true
-            } label: {
-                Text("＋ New Entry")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(DesignSystem.Colors.primary)
-                    .cornerRadius(16)
-            }
-            .buttonStyle(NotebookSpringyButtonStyle())
-            .padding(.horizontal, 16)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(EngineeringNoteKind.allCases) { kind in
-                        Button {
-                            selectedKind = kind
-                            showAddSheet = true
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: kind.icon)
-                                    .foregroundColor(EngineeringNotebookKindPalette.color(for: kind))
-                                Text(kind.shortName)
-                                    .foregroundColor(.white)
-                            }
-                            .font(.system(size: 14, weight: .semibold))
-                            .padding(.horizontal, 14)
-                            .frame(height: 38)
-                            .background(Color(red: 0.17, green: 0.17, blue: 0.18))
-                            .cornerRadius(20)
-                        }
-                        .buttonStyle(NotebookSpringyButtonStyle())
-                        .accessibilityLabel("Add \(kind.displayName) entry")
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 4)
-            }
-            .mask(
-                HStack(spacing: 0) {
-                    Color.black
-                    LinearGradient(gradient: Gradient(colors: [.black, .clear]), startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 24)
-                }
-            )
+        Button {
+            showAddSheet = true
+        } label: {
+            Text("New Entry")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(NotebookPalette.accent)
+                )
         }
+        .buttonStyle(NotebookSpringyButtonStyle())
+        .accessibilityLabel("New entry")
     }
 }
 
@@ -841,58 +771,10 @@ private struct NotebookSpringyButtonStyle: ButtonStyle {
     }
 }
 
+// Legacy palette used by other modules — delegate to NotebookPalette.
 private enum EngineeringNotebookKindPalette {
     static func color(for kind: EngineeringNoteKind) -> Color {
-        switch kind {
-        case .designDecision: return Color(red: 0.91, green: 0.64, blue: 0.35) // #E8A45A
-        case .testSession: return Color(red: 0.39, green: 0.63, blue: 0.91) // #64A0E8
-        case .bug: return Color(red: 1.0, green: 0.42, blue: 0.42) // #FF6B6B
-        case .meeting: return Color(red: 0.65, green: 0.55, blue: 0.98) // #A78BFA
-        case .other: return Color(red: 0.56, green: 0.56, blue: 0.58) // #8E8E93
-        }
-    }
-}
-
-private func notebookPhaseExplorerHint(_ phase: EngineeringDesignPhase?) -> String {
-    guard let phase else {
-        return "Every phase matters for judges—use filters above or browse everything below."
-    }
-    switch phase {
-    case .identifyPlan:
-        return "Goals, constraints, and options your team weighed."
-    case .createBuild:
-        return "Build choices, CAD summaries, and integration notes."
-    case .testEvaluate:
-        return "Hypotheses, setups, results, and honest outcomes."
-    case .iterateCommunicate:
-        return "What changed next—and how you told the story."
-    }
-}
-
-private func notebookPhaseCardSubtitle(_ phase: EngineeringDesignPhase) -> String {
-    switch phase {
-    case .identifyPlan: return "Define & plan"
-    case .createBuild: return "Create & build"
-    case .testEvaluate: return "Test & evaluate"
-    case .iterateCommunicate: return "Iterate & share"
-    }
-}
-
-private func notebookPhaseSystemImage(_ phase: EngineeringDesignPhase) -> String {
-    switch phase {
-    case .identifyPlan: return "scope"
-    case .createBuild: return "hammer.fill"
-    case .testEvaluate: return "checkmark.seal.fill"
-    case .iterateCommunicate: return "arrow.triangle.2.circlepath"
-    }
-}
-
-private func notebookPhaseTint(_ phase: EngineeringDesignPhase) -> Color {
-    switch phase {
-    case .identifyPlan: return DesignSystem.Colors.focus
-    case .createBuild: return DesignSystem.Colors.primary
-    case .testEvaluate: return DesignSystem.Colors.success
-    case .iterateCommunicate: return DesignSystem.Colors.accent
+        NotebookPalette.color(for: kind)
     }
 }
 
@@ -902,20 +784,20 @@ private struct RunLogTab: View {
     @ObservedObject var store: EngineeringNotebookStore
     @State private var showAddSheet = false
     
-    private var passCount: Int {
-        store.runs.filter { $0.passFail == true }.count
-    }
-    
-    private var failCount: Int {
-        store.runs.filter { $0.passFail == false }.count
+    private var passCount: Int { store.runs.filter { $0.passFail == true }.count }
+    private var failCount: Int { store.runs.filter { $0.passFail == false }.count }
+    private var totalRuns: Int { store.runs.count }
+    private var passRatePct: Int {
+        guard totalRuns > 0 else { return 0 }
+        let rated = passCount + failCount
+        guard rated > 0 else { return 0 }
+        return Int((Double(passCount) / Double(rated)) * 100.0)
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            // Hero Card
             heroCard
             
-            // Primary CTA
             Button {
                 showAddSheet = true
             } label: {
@@ -925,26 +807,21 @@ private struct RunLogTab: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
                     .background(
-                        LinearGradient(
-                            colors: [DesignSystem.Colors.primary, DesignSystem.Colors.accent],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(NotebookPalette.accent)
                     )
-                    .cornerRadius(16)
             }
             .buttonStyle(NotebookSpringyButtonStyle())
             
             Text("Short entries beat long essays — what changed between attempts?")
-                .font(.system(size: 12))
-                .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                .padding(.bottom, 8)
+                .font(.system(size: 13))
+                .foregroundColor(NotebookPalette.textSecondary)
+                .padding(.bottom, 4)
             
-            // Runs List
             if store.runs.isEmpty {
                 runLogEmptyState
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     ForEach(Array(store.runs.enumerated()), id: \.element.id) { index, run in
                         RunLogRow(
                             run: run,
@@ -961,180 +838,114 @@ private struct RunLogTab: View {
     }
     
     private var heroCard: some View {
-        VStack(spacing: 24) {
-            HStack {
+        VStack(spacing: 18) {
+            RunLogDonutRing(
+                passCount: passCount,
+                failCount: failCount,
+                total: totalRuns
+            )
+            .frame(width: 160, height: 160)
+            
+            VStack(spacing: 4) {
                 Text("RUN LOG")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.45))
-                    .tracking(1.2)
-                Spacer()
-                Menu {
-                    Button("All time") {}
-                } label: {
-                    HStack(spacing: 4) {
-                        Text("All time")
-                            .font(.caption.weight(.semibold))
-                        Image(systemName: "chevron.down")
-                            .font(.caption2.weight(.bold))
-                    }
-                    .foregroundColor(DesignSystem.Colors.primary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .strokeBorder(DesignSystem.Colors.primary.opacity(0.5), lineWidth: 1)
-                    )
-                }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(NotebookPalette.textTertiary)
+                    .tracking(1.4)
+                Text("\(totalRuns) runs · \(passRatePct)% pass rate")
+                    .font(.system(size: 14))
+                    .foregroundColor(NotebookPalette.textSecondary)
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: totalRuns)
             }
             
-            HStack(spacing: 0) {
-                statColumn(label: "Runs", count: store.runs.count)
-                Divider()
-                    .background(Color(red: 0.23, green: 0.23, blue: 0.24))
-                    .padding(.vertical, 4)
-                statColumn(label: "Pass", count: passCount)
-                Divider()
-                    .background(Color(red: 0.23, green: 0.23, blue: 0.24))
-                    .padding(.vertical, 4)
-                statColumn(label: "Fail", count: failCount)
+            HStack(spacing: 16) {
+                runLegend(color: NotebookPalette.pass, label: "Pass", count: passCount)
+                runLegend(color: NotebookPalette.fail, label: "Fail", count: failCount)
+                runLegend(color: NotebookPalette.chipInactive, label: "Untested", count: max(totalRuns - passCount - failCount, 0))
             }
-            
-            Text("Document hypothesis → result pairs to build iteration evidence judges look for.")
-                .font(.system(size: 12))
-                .italic()
-                .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.45))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(20)
-        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
-        .cornerRadius(16)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
+        .background(NotebookPalette.cardSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color(red: 0.23, green: 0.23, blue: 0.24), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(NotebookPalette.stroke, lineWidth: 1)
         )
     }
     
-    private func statColumn(label: String, count: Int) -> some View {
-        VStack(spacing: 8) {
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-            Text("\(count)")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(.white)
-                .contentTransition(.numericText())
-                .animation(.snappy, value: count)
+    private func runLegend(color: Color, label: String, count: Int) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text("\(label) \(count)")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(NotebookPalette.textSecondary)
         }
-        .frame(maxWidth: .infinity)
     }
     
     private var runLogEmptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "flask")
                 .font(.system(size: 44))
-                .foregroundColor(Color(red: 0.23, green: 0.23, blue: 0.24))
+                .foregroundColor(NotebookPalette.stroke)
             Text("No test runs yet")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.white)
-            Text("Log your first run above — judges want to see your iteration process, not just the final result.")
-                .font(.system(size: 15))
-                .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+            Text("Log your first run above — judges want to see your iteration, not just the final result.")
+                .font(.system(size: 14))
+                .foregroundColor(NotebookPalette.textSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(32)
         .frame(maxWidth: .infinity)
-        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
-        .cornerRadius(12)
+        .background(NotebookPalette.cardSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
-// MARK: - Note row
-
-private struct EngineeringNoteRow: View {
-    let note: EngineeringNote
-    var showDivider: Bool = true
+private struct RunLogDonutRing: View {
+    let passCount: Int
+    let failCount: Int
+    let total: Int
     
-    private var kindTint: Color {
-        switch note.entryKind {
-        case .designDecision: return DesignSystem.Colors.primary
-        case .testSession: return DesignSystem.Colors.focus
-        case .bug: return DesignSystem.Colors.error
-        case .meeting: return DesignSystem.Colors.secondary
-        case .other: return DesignSystem.Colors.textTertiary
-        }
+    private var passFraction: Double {
+        guard total > 0 else { return 0 }
+        return Double(passCount) / Double(total)
+    }
+    private var failFraction: Double {
+        guard total > 0 else { return 0 }
+        return Double(failCount) / Double(total)
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 0) {
-                Rectangle()
-                    .fill(kindTint)
-                    .frame(width: 4)
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: note.entryKind.icon)
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(kindTint)
-                        Text(note.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(DesignSystem.Colors.textPrimary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                        Spacer(minLength: 4)
-                        Text(note.createdAt.formatted(date: .omitted, time: .shortened))
-                            .font(.caption2.monospacedDigit())
-                            .foregroundColor(DesignSystem.Colors.textTertiary)
-                        Image(systemName: "chevron.right")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundColor(DesignSystem.Colors.textTertiary)
-                    }
-                    
-                    if !note.body.isEmpty {
-                        Text(note.body)
-                            .font(.caption)
-                            .foregroundColor(DesignSystem.Colors.textSecondary)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    
-                    HStack(spacing: 6) {
-                        Text(note.entryKind.shortName)
-                            .font(.caption2.weight(.medium))
-                            .foregroundColor(kindTint.opacity(0.9))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(kindTint.opacity(0.12))
-                            .clipShape(Capsule())
-                        if let author = note.authorStudent, !author.isEmpty {
-                            Text(author)
-                                .font(.caption2)
-                                .foregroundColor(DesignSystem.Colors.textTertiary)
-                                .lineLimit(1)
-                        }
-                        if let subsystem = note.subsystem, !subsystem.isEmpty {
-                            Text(subsystem)
-                                .font(.caption2)
-                                .foregroundColor(DesignSystem.Colors.textSecondary)
-                                .lineLimit(1)
-                        }
-                        if let next = note.nextStep, !next.isEmpty {
-                            Label("Next step", systemImage: "arrow.turn.down.right")
-                                .font(.caption2)
-                                .foregroundColor(DesignSystem.Colors.accent)
-                        }
-                    }
-                }
-                .padding(.vertical, DesignSystem.Spacing.sm + 2)
-                .padding(.trailing, DesignSystem.Spacing.md)
-                .padding(.leading, DesignSystem.Spacing.sm)
-            }
+        ZStack {
+            Circle()
+                .stroke(NotebookPalette.chipInactive, lineWidth: 14)
             
-            if showDivider {
-                Divider()
-                    .padding(.leading, 4 + DesignSystem.Spacing.sm)
+            Circle()
+                .trim(from: 0, to: passFraction)
+                .stroke(NotebookPalette.pass, style: StrokeStyle(lineWidth: 14, lineCap: .butt))
+                .rotationEffect(.degrees(-90))
+                .animation(.snappy, value: passFraction)
+            
+            Circle()
+                .trim(from: passFraction, to: passFraction + failFraction)
+                .stroke(NotebookPalette.fail, style: StrokeStyle(lineWidth: 14, lineCap: .butt))
+                .rotationEffect(.degrees(-90))
+                .animation(.snappy, value: failFraction)
+            
+            VStack(spacing: 2) {
+                Text("\(total)")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.white)
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: total)
+                Text(total == 1 ? "RUN" : "RUNS")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(NotebookPalette.textTertiary)
+                    .tracking(1.2)
             }
         }
     }
@@ -1148,70 +959,55 @@ private struct RunLogRow: View {
     let onDelete: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Run #\(index)")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(DesignSystem.Colors.primary)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(NotebookPalette.accent)
                 Spacer()
                 Text(run.createdAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.system(size: 12))
-                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                    .foregroundColor(NotebookPalette.textTertiary)
             }
             
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: 6) {
                 Text("Hypothesis:")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(NotebookPalette.textSecondary)
                 Text(run.hypothesis)
                     .font(.system(size: 14))
                     .foregroundColor(.white)
                     .lineLimit(1)
             }
             
-            HStack(alignment: .center, spacing: 8) {
-                Text("Result:")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                
+            HStack(spacing: 8) {
                 if let pass = run.passFail {
-                    Text(pass ? "PASS" : "FAIL")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(pass ? Color(red: 0.19, green: 0.82, blue: 0.35) : Color(red: 1.0, green: 0.27, blue: 0.23))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(pass ? Color(red: 0.19, green: 0.82, blue: 0.35) : Color(red: 1.0, green: 0.27, blue: 0.23), lineWidth: 1)
-                        )
+                    resultChip(pass: pass)
                 }
-                
                 Text(run.result)
                     .font(.system(size: 14))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                
-                Spacer()
-                
-                if let setup = run.setup, !setup.isEmpty {
-                    Text(setup)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(red: 0.17, green: 0.17, blue: 0.18))
-                        .clipShape(Capsule())
-                        .lineLimit(1)
-                }
-                
+                Spacer(minLength: 4)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                    .foregroundColor(NotebookPalette.textTertiary)
+            }
+            
+            if let setup = run.setup, !setup.isEmpty {
+                Text(setup)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(NotebookPalette.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(NotebookPalette.chipInactive))
+                    .lineLimit(1)
             }
         }
         .padding(16)
-        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
-        .cornerRadius(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NotebookPalette.cardSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .contextMenu {
             Button(role: .destructive) {
                 onDelete()
@@ -1219,6 +1015,18 @@ private struct RunLogRow: View {
                 Label("Delete Run", systemImage: "trash")
             }
         }
+    }
+    
+    private func resultChip(pass: Bool) -> some View {
+        Text(pass ? "PASS" : "FAIL")
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(pass ? NotebookPalette.pass : NotebookPalette.fail)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .overlay(
+                Capsule()
+                    .strokeBorder(pass ? NotebookPalette.pass : NotebookPalette.fail, lineWidth: 1)
+            )
     }
 }
 
@@ -1231,7 +1039,6 @@ private struct EngineeringNoteDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                // Header
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: note.entryKind.icon)
@@ -1266,7 +1073,6 @@ private struct EngineeringNoteDetailView: View {
                 
                 Divider()
                 
-                // Body
                 if !note.body.isEmpty {
                     Text(note.body)
                         .font(.body)
@@ -1309,7 +1115,6 @@ private struct EngineeringNoteDetailView: View {
                     .cornerRadius(DesignSystem.CornerRadius.md)
                 }
                 
-                // Next step
                 if let nextStep = note.nextStep, !nextStep.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Label("Next step", systemImage: "arrow.right.circle.fill")
@@ -1535,7 +1340,7 @@ private struct EngineeringRubricSheet: View {
                     Toggle("Student voice evident", isOn: rubricBinding(\.studentVoice))
                     Toggle("Iteration / design cycle visible", isOn: rubricBinding(\.iterationVisible))
                 } footer: {
-                    Text("This checklist is for your team only—not official judging. See FIRST’s engineering notebook self-assessment for full guidance.")
+                    Text("This checklist is for your team only—not official judging. See FIRST's engineering notebook self-assessment for full guidance.")
                         .font(.caption)
                 }
             }

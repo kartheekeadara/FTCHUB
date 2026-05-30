@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🧹 Cleaning FTC Team Hub project..."
+echo "🧹 Cleaning FTC HUB project..."
 
 # Clean build folder
 echo "1. Cleaning build folder..."

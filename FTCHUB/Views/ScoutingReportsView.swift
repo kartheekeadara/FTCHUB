@@ -9,194 +9,207 @@ import SwiftUI
 
 struct ScoutingReportsView: View {
     @EnvironmentObject var scoutingService: ScoutingService
-    @State private var showingCreateReport = false
-    @State private var showingQuickScout = false
-    @State private var searchText = ""
-    @State private var selectedPhase: MatchPhase? = nil
-    @State private var showingFilters = false
-    @State private var selectedAlliance: String? = nil
-    @State private var minRating: Double = 0
-    @State private var hasNotes: Bool? = nil
+    @EnvironmentObject var teamService: TeamService
+    @EnvironmentObject var scheduleService: ScheduleService
+    var scoutingSelectedTab: Binding<Int> = .constant(2)
+    var isEmbeddedInScoutingHub: Bool = false
     
+    @StateObject private var summaryService = TeamSummaryService()
+    @State private var showingTemplatePicker = false
+    @State private var selectedTemplate: ScoutingTemplate?
+    @State private var templateToUse: ScoutingTemplate?
+    @State private var showingCreateReport = false
+    @State private var shouldUseTemplate = false
+    @State private var pendingTemplateSelection: ScoutingTemplate? = nil
+    @State private var shouldProceedToForm = false
+    @State private var showingQuickScout = false
+    @State private var showingGenerateSummary = false
+    @State private var searchText = ""
+
     var filteredReports: [ScoutingReport] {
         var reports = scoutingService.scoutingReports
-        
+
         if !searchText.isEmpty {
             reports = reports.filter { report in
                 report.scoutedTeamNumber.localizedCaseInsensitiveContains(searchText) ||
                 report.eventName?.localizedCaseInsensitiveContains(searchText) == true ||
-                report.matchNumber?.localizedCaseInsensitiveContains(searchText) == true
+                report.matchNumber?.localizedCaseInsensitiveContains(searchText) == true ||
+                report.reportData["Strategy Focus"]?.localizedCaseInsensitiveContains(searchText) == true
             }
         }
-        
-        if let phase = selectedPhase {
-            reports = reports.filter { $0.phase == phase }
-        }
-        
-        if let alliance = selectedAlliance {
-            reports = reports.filter { $0.reportData["Alliance Color"] == alliance }
-        }
-        
-        if minRating > 0 {
-            reports = reports.filter { report in
-                if let rating = Double(report.reportData["Overall Quality"] ?? "0") {
-                    return rating >= minRating
-                }
-                return false
-            }
-        }
-        
-        if let hasNotesValue = hasNotes {
-            if hasNotesValue {
-                reports = reports.filter { !($0.notes?.isEmpty ?? true) || !$0.reportData.isEmpty }
-            }
-        }
-        
+
         return reports
     }
-    
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Search and Filter Bar
-            VStack(spacing: DesignSystem.Spacing.sm) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(DesignSystem.Colors.textSecondary)
-                    TextField("Search reports...", text: $searchText)
-                        .textFieldStyle(PlainTextFieldStyle())
-                }
-                .padding(DesignSystem.Spacing.md)
-                .background(DesignSystem.Colors.tertiaryBackground)
-                .cornerRadius(DesignSystem.CornerRadius.md)
+        ScrollView {
+            VStack(spacing: DesignSystem.Spacing.md) {
+                ScoutingSearchBar(
+                    text: $searchText,
+                    placeholder: "Search reports...",
+                    isEmbeddedInScoutingHub: isEmbeddedInScoutingHub
+                )
                 
-                HStack {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: DesignSystem.Spacing.sm) {
-                            FilterPill(
-                                title: "All",
-                                isSelected: selectedPhase == nil
-                            ) {
-                                selectedPhase = nil
+                if scoutingService.isLoading {
+                    ProgressView("Loading Reports...")
+                        .frame(maxWidth: .infinity, minHeight: 200)
+                } else if scoutingService.currentTeamId == nil {
+                    ContentUnavailableView {
+                        Label("No Team Connected", systemImage: "person.3.sequence")
+                    } description: {
+                        Text("Join or create a team in the Team tab to start collecting and reviewing scouting data.")
+                    }
+                } else if let errorMessage = scoutingService.errorMessage {
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 40))
+                            .foregroundColor(DesignSystem.Colors.error)
+                        
+                        Text("Error Loading Reports")
+                            .font(.headline)
+                            .foregroundColor(DesignSystem.Colors.textPrimary)
+                        
+                        Text(errorMessage)
+                            .font(.subheadline)
+                            .foregroundColor(DesignSystem.Colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 200)
+                } else if filteredReports.isEmpty {
+                    EnhancedEmptyStateView.noReports {
+                        showingTemplatePicker = true
+                    }
+                } else {
+                    LazyVStack(spacing: DesignSystem.Spacing.md) {
+                        ForEach(filteredReports) { report in
+                            NavigationLink(destination: ScoutingReportDetailView(report: report)) {
+                                ScoutingReportCard(report: report)
                             }
-                            
-                            ForEach(MatchPhase.allCases, id: \.self) { phase in
-                                FilterPill(
-                                    title: phase.displayName,
-                                    isSelected: selectedPhase == phase
-                                ) {
-                                    selectedPhase = phase
-                                }
-                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
-                        .padding(.horizontal, DesignSystem.Spacing.md)
                     }
-                    
-                    // Filter button
-                    Button {
-                        showingFilters = true
-                    } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .font(.title3)
-                            .foregroundColor(DesignSystem.Colors.primary)
-                    }
-                    .padding(.trailing, DesignSystem.Spacing.sm)
                 }
             }
             .padding(.horizontal, DesignSystem.Spacing.md)
-            .padding(.bottom, DesignSystem.Spacing.sm)
-            
-            if scoutingService.isLoading {
-                ProgressView("Loading Reports...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let errorMessage = scoutingService.errorMessage {
-                VStack(spacing: DesignSystem.Spacing.md) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 40))
-                        .foregroundColor(DesignSystem.Colors.error)
-                    
-                    Text("Error Loading Reports")
-                        .font(.headline)
-                        .foregroundColor(DesignSystem.Colors.textPrimary)
-                    
-                    Text(errorMessage)
-                        .font(.subheadline)
-                        .foregroundColor(DesignSystem.Colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, DesignSystem.Spacing.lg)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if filteredReports.isEmpty {
-                ContentUnavailableView {
-                    Label("No Scouting Reports", systemImage: "chart.bar.doc.horizontal")
-                } description: {
-                    Text("Start scouting matches to collect data about other teams.")
-                } actions: {
-                    Button("Create Report") {
-                        showingCreateReport = true
-                    }
-                    .primaryButtonStyle()
-                }
-            } else {
-                EnhancedListView(
-                    items: filteredReports,
-                    onDelete: { report in
-                        Task {
-                            try await scoutingService.deleteScoutingReport(report: report)
+            .padding(.bottom, DesignSystem.Spacing.xxl)
+        }
+        .background(DesignSystem.Colors.background)
+        .navigationTitle(isEmbeddedInScoutingHub ? "" : "Reports")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                HStack(spacing: DesignSystem.Spacing.md) {
+                    Menu {
+                        Button {
+                            showingQuickScout = true
+                        } label: {
+                            Label("Quick Scout", systemImage: "bolt.fill")
                         }
-                    },
-                    onEdit: { report in
-                        // TODO: Implement edit functionality
+                        if !scoutingService.scoutingReports.isEmpty {
+                            Button {
+                                showingGenerateSummary = true
+                            } label: {
+                                Label("Generate Summary", systemImage: "sparkles")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                            .foregroundColor(DesignSystem.Colors.primary)
                     }
-                ) { report in
-                    NavigationLink(destination: ScoutingReportDetailView(report: report)) {
-                        ScoutingReportCard(report: report)
+                    
+                    Button(action: {
+                        showingTemplatePicker = true
+                    }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(DesignSystem.Colors.primary)
                     }
-                    .buttonStyle(PlainButtonStyle())
                 }
             }
         }
-        .navigationTitle("Reports")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        showingQuickScout = true
-                    } label: {
-                        Label("Quick Scout", systemImage: "bolt.fill")
-                    }
-                    
-                    Button {
-                        showingCreateReport = true
-                    } label: {
-                        Label("Full Scout", systemImage: "doc.text.fill")
-                    }
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(DesignSystem.Gradients.primary)
+        .sheet(isPresented: $showingTemplatePicker) {
+            ScoutingTemplatePickerView(
+                selectedTemplate: $selectedTemplate,
+                onTemplateSelected: { template in
+                    // Store the pending selection and mark that we should proceed
+                    pendingTemplateSelection = template
+                    shouldProceedToForm = true
+                    // Dismiss the template picker
+                    showingTemplatePicker = false
+                },
+                onCancel: {
+                    // User cancelled - reset all state, don't proceed
+                    pendingTemplateSelection = nil
+                    shouldProceedToForm = false
+                    templateToUse = nil
+                    selectedTemplate = nil
+                    shouldUseTemplate = false
+                    showingTemplatePicker = false
+                }
+            )
+            .environmentObject(scoutingService)
+            .onDisappear {
+                // When picker dismisses, process the pending selection only if we should proceed
+                guard shouldProceedToForm else { return }
+                
+                if let template = pendingTemplateSelection {
+                    // Template was selected
+                    templateToUse = template
+                    selectedTemplate = template
+                    shouldUseTemplate = true
+                } else {
+                    // Explicitly nil means "Create Without Template"
+                    templateToUse = nil
+                    selectedTemplate = nil
+                    shouldUseTemplate = false
+                }
+                
+                // Clear pending state
+                pendingTemplateSelection = nil
+                shouldProceedToForm = false
+                
+                // Show the create report form after a brief delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    showingCreateReport = true
                 }
             }
         }
         .sheet(isPresented: $showingCreateReport) {
-            CreateScoutingReportView()
-                .environmentObject(scoutingService)
+            Group {
+                if shouldUseTemplate, let template = templateToUse {
+                    // Show dynamic form with selected template
+                    DynamicScoutingFormView(template: template)
+                        .environmentObject(scoutingService)
+                        .onDisappear {
+                            // Reset state when form is dismissed
+                            templateToUse = nil
+                            selectedTemplate = nil
+                            shouldUseTemplate = false
+                        }
+                } else {
+                    // Show generic form (no template selected)
+                    CreateScoutingReportView()
+                        .environmentObject(scoutingService)
+                        .onDisappear {
+                            // Reset state when form is dismissed
+                            templateToUse = nil
+                            selectedTemplate = nil
+                            shouldUseTemplate = false
+                        }
+                }
+            }
         }
         .sheet(isPresented: $showingQuickScout) {
             QuickScoutView()
                 .environmentObject(scoutingService)
         }
-        .sheet(isPresented: $showingFilters) {
-            FilterSheet(
-                selectedAlliance: $selectedAlliance,
-                minRating: $minRating,
-                hasNotes: $hasNotes,
-                isPresented: $showingFilters
-            )
+        .sheet(isPresented: $showingGenerateSummary) {
+            GenerateSummaryView()
+                .environmentObject(scoutingService)
+                .environmentObject(summaryService)
         }
-        .onAppear {
-            Task {
-                await scoutingService.loadScoutingData()
-            }
+        .task {
+            await scoutingService.loadScoutingData()
         }
         .refreshable {
             await scoutingService.loadScoutingData()
@@ -204,190 +217,242 @@ struct ScoutingReportsView: View {
     }
 }
 
+
 struct ScoutingReportCard: View {
     let report: ScoutingReport
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            // Header
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                    Text("Team \(report.scoutedTeamNumber)")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(DesignSystem.Colors.textPrimary)
-                    
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            // Header with team info and rating
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     HStack(spacing: DesignSystem.Spacing.sm) {
-                        if let allianceColor = report.reportData["Alliance Color"] {
-                            Text(allianceColor)
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(allianceColor == "Red" ? .white : .white)
-                                .padding(.horizontal, DesignSystem.Spacing.sm)
-                                .padding(.vertical, 4)
-                                .background(allianceColor == "Red" ? Color.red : Color.blue)
-                                .cornerRadius(DesignSystem.CornerRadius.sm)
-                        }
-                        
-                        if let matchNumber = report.matchNumber {
-                            Text("• \(matchNumber)")
-                                .font(.subheadline)
-                                .foregroundColor(DesignSystem.Colors.textSecondary)
+                Text("Team \(report.scoutedTeamNumber)")
+                            .font(.title3.weight(.bold))
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
+
+                    if let allianceColor = report.stringValue("Alliance Color") {
+                        Text(allianceColor)
+                                .font(.caption2.weight(.semibold))
+                            .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                            .background(allianceColor == "Red" ? Color.red : Color.blue)
+                                .cornerRadius(4)
                         }
                     }
-                    
-                    if let eventName = report.eventName {
-                        Text(eventName)
-                            .font(.caption)
-                            .foregroundColor(DesignSystem.Colors.textSecondary)
-                    }
+
+                    if let matchNumber = report.matchNumber {
+                        Text("Match \(matchNumber)")
+                        .font(.caption)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
                 }
-                
-                Spacer()
-                
-                // Rating badge
-                if let rating = report.reportData["Overall Quality"], let ratingValue = Double(rating) {
+            }
+
+            Spacer()
+
+            if let ratingValue = report.doubleValue("Overall Quality") {
                     VStack(spacing: 2) {
                         HStack(spacing: 2) {
                             ForEach(1...5, id: \.self) { index in
-                                Image(systemName: index <= Int(ratingValue) ? "star.fill" : "star")
-                                    .foregroundColor(index <= Int(ratingValue) ? .yellow : .gray)
-                                    .font(.caption)
+                                Image(systemName: index <= Int(ratingValue.rounded(.down)) ? "star.fill" : "star")
+                                    .foregroundColor(.yellow)
+                                    .font(.system(size: 10))
                             }
                         }
                         Text(String(format: "%.1f", ratingValue))
                             .font(.caption2)
-                            .fontWeight(.semibold)
                             .foregroundColor(DesignSystem.Colors.textSecondary)
                     }
                 }
             }
             
-            Divider()
-                .background(DesignSystem.Colors.border)
-            
-            // Quick stats
-            VStack(spacing: DesignSystem.Spacing.xs) {
-                // Auto stats
+            // Key metrics in a compact grid
+            if let autoClassified = report.stringValue("Auto Classified Artifacts"),
+               let teleopClassified = report.stringValue("Teleop Classified Artifacts") {
                 HStack(spacing: DesignSystem.Spacing.md) {
-                    if let autoGreen = report.reportData["Auto Green Artifacts"] {
-                        ReportStatItem(icon: "circle.fill", color: .green, label: "Auto G:", value: autoGreen)
-                    }
-                    if let autoPurple = report.reportData["Auto Purple Artifacts"] {
-                        ReportStatItem(icon: "circle.fill", color: .purple, label: "Auto P:", value: autoPurple)
-                    }
-                }
-                
-                // Teleop stats
-                HStack(spacing: DesignSystem.Spacing.md) {
-                    if let teleopGreen = report.reportData["Teleop Green Artifacts"] {
-                        ReportStatItem(icon: "circle.fill", color: .green, label: "Teleop G:", value: teleopGreen)
-                    }
-                    if let teleopPurple = report.reportData["Teleop Purple Artifacts"] {
-                        ReportStatItem(icon: "circle.fill", color: .purple, label: "Teleop P:", value: teleopPurple)
+                    ReportMetricBadge(icon: "bolt.fill", label: "Auto", value: autoClassified, color: .blue)
+                    ReportMetricBadge(icon: "timer", label: "Teleop", value: teleopClassified, color: .green)
+                    if let driveBase = report.stringValue("Drive Base") {
+                        ReportMetricBadge(icon: "gearshape.fill", label: "Drive", value: driveBase, color: DesignSystem.Colors.primary)
                     }
                 }
             }
             
-            // Footer
-            HStack {
-                Text(report.createdAt, style: .relative)
-                    .font(.caption)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-                
-                Spacer()
-                
-                if let notes = report.notes, !notes.isEmpty {
-                    Label("Has notes", systemImage: "note.text")
-                        .font(.caption)
-                        .foregroundColor(DesignSystem.Colors.primary)
+            // Tags row
+            if let phase = report.phase {
+                HStack(spacing: DesignSystem.Spacing.xs) {
+                    PhaseBadge(phase: phase)
+                    if let strategy = report.stringValue("Strategy Focus") {
+                        Text(strategy)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(DesignSystem.Colors.tertiaryBackground)
+                            .foregroundColor(DesignSystem.Colors.textSecondary)
+                            .cornerRadius(4)
+                    }
                 }
             }
+            
+            // Footer with timestamp
+            Text(report.createdAt, style: .relative)
+                .font(.caption2)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
         }
         .padding(DesignSystem.Spacing.md)
         .background(DesignSystem.Colors.cardBackground)
-        .cornerRadius(DesignSystem.CornerRadius.lg)
-        .shadow(color: DesignSystem.Colors.shadow, radius: 5, x: 0, y: 2)
+        .cornerRadius(DesignSystem.CornerRadius.md)
+        .shadow(color: DesignSystem.Colors.shadow.opacity(0.08), radius: 4, x: 0, y: 2)
     }
 }
 
-struct ReportStatItem: View {
+private struct ReportMetricBadge: View {
     let icon: String
-    let color: Color
     let label: String
     let value: String
+    let color: Color
     
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
+                .font(.system(size: 10))
                 .foregroundColor(color)
-                .font(.caption2)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
+                Text(value)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(DesignSystem.Colors.tertiaryBackground)
+        .cornerRadius(6)
+    }
+}
+
+private struct SectionHeader: View {
+    let title: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.xs) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(DesignSystem.Colors.primary)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+        }
+    }
+}
+
+private struct StatLine: View {
+    let label: String
+    let value: String?
+
+    var body: some View {
+        HStack {
             Text(label)
                 .font(.caption)
                 .foregroundColor(DesignSystem.Colors.textSecondary)
-            Text(value)
-                .font(.caption)
-                .fontWeight(.semibold)
+            Spacer()
+            Text(value ?? "–")
+                .font(.caption.weight(.semibold))
                 .foregroundColor(DesignSystem.Colors.textPrimary)
         }
     }
 }
 
-struct FilterSheet: View {
-    @Binding var selectedAlliance: String?
-    @Binding var minRating: Double
-    @Binding var hasNotes: Bool?
-    @Binding var isPresented: Bool
-    
+private struct CapabilityChip: View {
+    let label: String
+    let icon: String
+
     var body: some View {
-        NavigationView {
-            Form {
-                Section("Alliance Color") {
-                    Picker("Alliance", selection: $selectedAlliance) {
-                        Text("All").tag(nil as String?)
-                        Text("Red").tag("Red" as String?)
-                        Text("Blue").tag("Blue" as String?)
-                    }
-                }
-                
-                Section("Minimum Rating") {
-                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                        HStack {
-                            Text("\(Int(minRating))")
-                                .font(.headline)
-                            Spacer()
-                            Text("/ 5 stars")
-                                .foregroundColor(DesignSystem.Colors.textSecondary)
-                        }
-                        Slider(value: $minRating, in: 0...5, step: 1)
-                    }
-                }
-                
-                Section("Notes") {
-                    Picker("Has Notes", selection: $hasNotes) {
-                        Text("All").tag(nil as Bool?)
-                        Text("Yes").tag(true as Bool?)
-                        Text("No").tag(false as Bool?)
-                    }
-                }
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+            Text(label)
+        }
+        .font(.caption.weight(.medium))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(DesignSystem.Colors.tertiaryBackground)
+        .foregroundColor(DesignSystem.Colors.textPrimary)
+        .clipShape(Capsule())
+    }
+}
+
+private struct RPBadge: View {
+    let title: String
+    let achieved: Bool
+    let detail: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.xs) {
+                Image(systemName: achieved ? "checkmark.seal.fill" : "xmark.seal")
+                    .foregroundColor(achieved ? .green : .gray)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(title.uppercased())
+                    .font(.caption2.weight(.bold))
             }
-            .navigationTitle("Filters")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Clear All") {
-                        selectedAlliance = nil
-                        minRating = 0
-                        hasNotes = nil
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        isPresented = false
-                    }
-                }
+            Text(detail)
+                .font(.caption2)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+        }
+        .padding(.horizontal, DesignSystem.Spacing.sm)
+        .padding(.vertical, DesignSystem.Spacing.xs)
+        .background(DesignSystem.Colors.tertiaryBackground)
+        .cornerRadius(DesignSystem.CornerRadius.sm)
+    }
+}
+
+
+private struct StarRatingView: View {
+    let score: Double
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(1...5, id: \.self) { index in
+                Image(systemName: index <= Int(score.rounded(.down)) ? "star.fill" : (Double(index) - 0.5 <= score ? "star.leadinghalf.filled" : "star"))
+                    .foregroundColor(.yellow)
+                    .font(.caption)
             }
         }
+    }
+}
+
+private extension ScoutingReport {
+    func stringValue(_ key: String) -> String? {
+        guard let value = reportData[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
+    }
+
+    func doubleValue(_ key: String) -> Double? {
+        guard let text = stringValue(key) else { return nil }
+        return Double(text)
+    }
+
+    func boolValue(_ key: String) -> Bool? {
+        guard let text = stringValue(key)?.lowercased() else { return nil }
+        switch text {
+        case "true", "yes", "y", "1": return true
+        case "false", "no", "n", "0": return false
+        default: return nil
+        }
+    }
+}
+
+private extension NumberFormatter {
+    static func percentString(from value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .percent
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? "–"
     }
 }
 
@@ -414,25 +479,6 @@ struct PhaseBadge: View {
         case .auto: return .blue
         case .teleop: return .green
         case .endgame: return .orange
-        }
-    }
-}
-
-struct FilterPill: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.caption)
-                .fontWeight(.medium)
-                .padding(.horizontal, DesignSystem.Spacing.md)
-                .padding(.vertical, DesignSystem.Spacing.sm)
-                .background(isSelected ? AnyView(DesignSystem.Gradients.primary) : AnyView(Color(.systemGray6)))
-                .foregroundColor(isSelected ? .white : DesignSystem.Colors.textPrimary)
-                .cornerRadius(DesignSystem.CornerRadius.sm)
         }
     }
 }

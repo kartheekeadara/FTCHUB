@@ -84,14 +84,14 @@ struct EnhancedTextField: View {
                     .foregroundColor(DesignSystem.Colors.textSecondary)
             }
         }
-        .onChange(of: text) { _ in
+        .onChange(of: text) { oldValue, newValue in
             withAnimation {
-                isFloating = !text.isEmpty || isFocused
+                isFloating = !newValue.isEmpty || isFocused
             }
         }
-        .onChange(of: isFocused) { focused in
+        .onChange(of: isFocused) { oldValue, newValue in
             withAnimation {
-                isFloating = !text.isEmpty || focused
+                isFloating = !text.isEmpty || newValue
             }
         }
         .onAppear {

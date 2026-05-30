@@ -1,0 +1,7 @@
+Version 2.4
+
+- Security hardening for authentication, profile creation, and password reset flows.
+- Privacy manifest added for App Store compliance.
+- Schedule scanner uses read-only photo library access.
+- Improved deep-link handling without sensitive token logging.
+- Bug fixes and stability improvements across team management, scouting, and finance tools.

@@ -31,7 +31,7 @@ struct TeamJoinView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(DesignSystem.Colors.textPrimary)
                         
-                        Text("Enter the team number to join an existing team")
+                        Text("Enter the invite code to join a team")
                             .font(.subheadline)
                             .foregroundColor(DesignSystem.Colors.textSecondary)
                             .multilineTextAlignment(.center)
@@ -41,13 +41,13 @@ struct TeamJoinView: View {
                     // Form
                     VStack(spacing: DesignSystem.Spacing.lg) {
                         CustomTextField(
-                            title: "Team Number *",
+                            title: "Invite Code *",
                             text: $teamNumber,
-                            placeholder: "e.g., 12345"
+                            placeholder: "e.g., ABC123"
                         )
-                        .keyboardType(.numberPad)
+                        .textInputAutocapitalization(.characters)
                         
-                        Text("You'll need to be invited by a team member to join.")
+                        Text("You'll join the team immediately. Membership is permanent unless you leave or are removed.")
                             .font(.caption)
                             .foregroundColor(DesignSystem.Colors.textSecondary)
                             .multilineTextAlignment(.center)
@@ -55,7 +55,7 @@ struct TeamJoinView: View {
                     .padding(.horizontal, DesignSystem.Spacing.md)
                     
                     // Join Button
-                    Button(action: joinTeam) {
+                    Button(action: requestToJoin) {
                         HStack {
                             if isJoining {
                                 ProgressView()
@@ -85,8 +85,12 @@ struct TeamJoinView: View {
                 }
             }
         }
-        .alert("Error", isPresented: $showingError) {
-            Button("OK") { }
+        .alert(showingError && (errorMessage.contains("Successfully") || errorMessage.contains("joined")) ? "Success" : "Error", isPresented: $showingError) {
+            Button("OK") {
+                if errorMessage.contains("Successfully") || errorMessage.contains("joined") {
+                    dismiss()
+                }
+            }
         } message: {
             Text(errorMessage)
         }
@@ -96,17 +100,23 @@ struct TeamJoinView: View {
         !teamNumber.isEmpty
     }
     
-    private func joinTeam() {
+    private func requestToJoin() {
         guard isFormValid else { return }
         
         isJoining = true
         
         Task {
             do {
-                try await teamService.joinTeam(teamNumber: teamNumber)
+                try await teamService.requestToJoinTeam(inviteCode: teamNumber)
                 
                 await MainActor.run {
-                    dismiss()
+                    errorMessage = "Successfully joined the team!"
+                    showingError = true
+                    isJoining = false
+                    // Dismiss after a short delay to show success
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        dismiss()
+                    }
                 }
             } catch {
                 await MainActor.run {

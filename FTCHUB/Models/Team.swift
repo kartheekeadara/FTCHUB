@@ -15,11 +15,24 @@ struct Team: Codable, Identifiable, Hashable {
     let city: String?
     let state: String?
     let country: String
+    let coachId: UUID // ID of the coach who created the team
+    let inviteCode: String // Unique invite code for joining
+    // Phase 2: Public team visibility fields
+    let isPublic: Bool? // Whether team profile is publicly visible
+    let websiteUrl: String? // Team website URL
+    let bio: String? // Team bio/description
+    let robotName: String? // Current robot name
     let createdAt: Date
     let updatedAt: Date
     
     enum CodingKeys: String, CodingKey {
         case id, name, number, school, city, state, country
+        case coachId = "coach_id"
+        case inviteCode = "invite_code"
+        case isPublic = "is_public"
+        case websiteUrl = "website_url"
+        case bio
+        case robotName = "robot_name"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -48,6 +61,12 @@ extension Team {
         city: "Sample City",
         state: "CA",
         country: "USA",
+        coachId: UUID(),
+        inviteCode: "ABC123",
+        isPublic: true,
+        websiteUrl: nil,
+        bio: nil,
+        robotName: "RoboBot 3000",
         createdAt: Date(),
         updatedAt: Date()
     )

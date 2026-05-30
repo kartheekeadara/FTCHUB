@@ -67,7 +67,6 @@ struct Event: Codable, Identifiable, Hashable {
     let location: String?
     let eventType: EventType
     let status: EventStatus
-    let googleCalendarId: String?
     let createdAt: Date
     let updatedAt: Date
     
@@ -78,7 +77,6 @@ struct Event: Codable, Identifiable, Hashable {
         case endDate = "end_date"
         case eventType = "event_type"
         case status
-        case googleCalendarId = "google_calendar_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
