@@ -4,6 +4,17 @@ Native iOS application for [FIRST Tech Challenge](https://www.firstinspires.org/
 
 FTCHUB is an independent project and is not affiliated with or endorsed by FIRST.
 
+**[Download on the App Store](https://apps.apple.com/us/app/ftc-hub/id6755899343)**
+
+<p align="center">
+<img src="docs/screenshots/1-team.webp" width="140" alt="team">
+<img src="docs/screenshots/2-match-day.webp" width="140" alt="match day">
+<img src="docs/screenshots/3-scouting.webp" width="140" alt="scouting">
+<img src="docs/screenshots/4-schedule.webp" width="140" alt="schedule">
+<img src="docs/screenshots/5-finance.webp" width="140" alt="finance">
+<img src="docs/screenshots/6-notebook.webp" width="140" alt="notebook">
+</p>
+
 ## Highlights
 
 - Production-oriented SwiftUI app with role-aware navigation (guest, authenticated, and full team modes)
